@@ -1,8 +1,29 @@
 ---
-title: "Práctica Final - Primavera 2021"
-author: Alfredo Garbuno Iñigo
-output: html_document
+title:
+  - "![](./Imagen_logo_ITAM.jpg){width=10in}"
+  - <center><h1><div class="green"> **PRÁCTICA FINAL METODOS BAYESIANOS - PRIMAVERA 2021** </div></h1><center>
+  - "![](./Imagen_espacio.jpg){width=10in}"
+author:
+  - <center><h1><div class="darkgreen"> **EQUIPO 08** </div></h1><center>
+  - <center> <font size="5"> Dorely Morales Santiago  178095 </font> <center>
+  - <center> <font size="5"> Rodrigo Suárez Segovia   191351 </font> <center>
+  - <center> <font size="5"> Zarazúa Cruz Guillermo   159396 </font> <center>
+date:
+  - "![](./Imagen_espacio.jpg){width=10in}"
+output:
+  html_document: default
 ---
+
+```{r, echo=FALSE}
+colorize <- function(x, color) {
+  if (knitr::is_latex_output()) {
+    sprintf("\\textcolor{%s}{%s}", color, x)
+  } else if (knitr::is_html_output()) {
+    sprintf("<span style='color: %s;'>%s</span>", color, 
+      x)
+  } else x
+}
+```
 
 **Entrega:** 
 
@@ -69,22 +90,57 @@ comma <- function(x) format(x, digits = 2, big.mark = ",")
 theme_set(theme_linedraw())
 ```
 
+```{r, warning=FALSE, message=FALSE, echo=T, results='hide'}
+# Carga de las librerias adicionales utilizadas por el Equipo 8
 
-# Modelos de conteo: Águilas
+# Librería:             Funciones utilizadas:
+# rethinking            
+# summarytools          dfSummary
+# latex2exp             TeX
+
+# Creamos una lista con las librerías, luego obtenemos las que no se tienen
+# instaladas, luego instalamos las que hagan falta
+lib_proy <- c('summarytools','latex2exp', 'kableExtra')
+lib_proy_faltantes <- lib_proy[!(lib_proy %in% installed.packages()[ , "Package"])]
+if(length(lib_proy_faltantes)) install.packages(lib_proy_faltantes)
+
+# Para instalar la librería "rethinking" usar los siguientes comandos:
+# install.packages(c("coda","mvtnorm","devtools","loo","dagitty")) #CHECAR SI ESTE ES NECESARIO
+# devtools::install_github("rmcelreath/rethinking")
+
+# Cargamos todas las librerías
+lapply(c(lib_proy, 'rethinking'), require, character.only = TRUE)
+```
+
+
+# `r colorize("1. Modelos de conteo: Águilas", "green")`
 
 Los datos contenidos en `MASS` (eagles) son registros intento de robo entre
 águilas blancas en el estado de Washington. Ve la ayuda para mayor detalle en el
 conjunto de datos:
 
+```{r, warning=FALSE, message=FALSE, cache = TRUE, results='markup'}
+data(eagles)
 
+eagles %>%
+  head() %>%
+  kbl(digits=2) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
 
-```{r}
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+descr(eagles) %>%
+  kbl(digits=2) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
 
-# library(rethinking)
-# data(eagles)
-# eagles %>% 
-#     head()
+```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
+# Si se quisiera visualizar el summary corriendo solo este chunck hacerlo con:
+# print(dfSummary(eagles, plain.ascii=FALSE, style="grid", valid.col=FALSE), method="render")
 
+# Con lo sisuientes parámetros (incluido la opción del chunk "results='asis'", puede
+# visualizarse el summary cuando se genera el html)
+dfSummary(eagles, plain.ascii = FALSE, style = "grid", graph.magnif = 0.75, valid.col = FALSE, tmp.img.dir = "/tmp")
 ```
 
 Mientras un águila se alimenta, a veces otra se abalanza y trata de robar el
@@ -119,7 +175,7 @@ predicción posterior?
 edad de los piratas. Compara la capacidad predictiva de los modelos. Interpreta
 los resultados.
 
-# Extensiones de modelos de conteo: huracanes
+# `r colorize("2. Extensiones de modelos de conteo: huracanes", "green")`
 
 En 2014, se publicó un artículo titulado [*"Female hurricanes are deadlier than
 male hurricanes"*](https://www.pnas.org/content/111/24/8782). Como sugiere el
@@ -133,10 +189,29 @@ hipótesis que los huracanes con nombres femeninos son más letales. Carga los
 datos con:
 
 
-```{r}
-# data(Hurricanes)
-# Hurricanes %>% 
-#     head()
+```{r, warning=FALSE, message=FALSE, cache = TRUE, results='markup'}
+data(Hurricanes)
+
+Hurricanes %>%
+  head() %>%
+  kbl(digits=2) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+descr(Hurricanes) %>%
+  kbl(digits=2) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
+# Si se quisiera visualizar el summary corriendo solo este chunck hacerlo con:
+# print(dfSummary(Hurricanes, plain.ascii=FALSE, style="grid", valid.col=FALSE), method="render")
+
+# Con lo sisuientes parámetros (incluido la opción del chunk "results='asis'", puede
+# visualizarse el summary cuando se genera el html)
+dfSummary(Hurricanes, plain.ascii = FALSE, style = "grid", graph.magnif = 0.75, valid.col = FALSE, tmp.img.dir = "/tmp")
 ```
 
 Familiarízate con las columnas inspeccionando la ayuda `?Hurricanes`. En este
@@ -177,23 +252,28 @@ modelo que usa `log(damage_norm)` a un modelo que usa `damage_norm`
 directamente. Compara la capacidad predictiva, así como sus predicciones
 implícitas. ¿Qué es lo que concluyes?
 
-# Inferencia Causal: experimentos aleatorizados
+
+# `r colorize("3. Inferencia Causal: experimentos aleatorizados", "green")`
 
 Distribuciones muestrales bajo aleatorización: Utilice la covariable y el
 potencial de salida (*potential outcome*) de los datos en la tabla 18.1 del
 libro *Regresion and Other Stories*. Abajo viene una versión simplificada
 (aunque hacen falta un par más, incorporalas):
 
-```{r}
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
 
 omega <- tibble(female = factor(rep(rep(c(1,0), each = 2), 2)), 
        age    = rep(c(4,5,6,7), each = 2) * 10, 
        treatment = factor(rep(c(0,1), each = 4)), 
        outcome = rep(c(140, 150, 155, 160), each = 2))
 
-omega %>% head()
+omega %>%
+  head() %>%
+  kbl(digits=2)  %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
 
 ```
+
 
 como punto de partida para considerar distribuciones de aleatorización de cuatro
 diseños diferentes mediante la creación de simulaciones en `R`.
@@ -212,7 +292,7 @@ utilizando cada una de las siguientes estimaciones:
 • Regresión del indicador de tratamiento, edad, sexo e interacción tratamiento
 $\times$ sexo.
 
-# Inferencia Causal y Modelos de Regresión: vacas 
+# `r colorize("4. Inferencia Causal y Modelos de Regresión: vacas", "green")`
 
 *Aleatorización desordenada*: los datos de `vacas.txt` contiene datos de un
 experimento que se llevó a cabo con 50 vacas para estimar el efecto de un
@@ -246,3 +326,37 @@ c) Repite (b), esta vez considerando el nivel del complemento como un predictor
 categórico con cuatro niveles. Haga una gráfica que muestre la estimación (y el
 error estándar) del efecto del tratamiento en cada nivel, y también mostrando la
 inferencia del modelo ajustado en (b).
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+Vacas <- read_delim("vacas.txt", delim = " ") %>%
+  type.convert() %>%
+  as.data.frame()
+
+# CHECAR SI SE PUEDE EVITAR CREAR ATRIBUTOS Y/O SI ES NECESARIO ELMINARLOS
+attr(Vacas, 'problems') <- NULL
+attr(Vacas, 'spec') <- NULL
+Vacas<-as.tibble(Vacas)
+
+Vacas %>%
+  head() %>%
+  kbl(digits=2)  %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+  # kable_material(c("striped"))
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+descr(Vacas) %>%
+  kbl(digits=2) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
+# Si se quisiera visualizar el summary corriendo solo este chunck hacerlo con:
+# print(dfSummary(Vacas, plain.ascii=FALSE, style="grid", valid.col=FALSE), method="render")
+
+# Con lo sisuientes parámetros (incluido la opción del chunk "results='asis'", puede
+# visualizarse el summary cuando se genera el html)
+dfSummary(Vacas, plain.ascii = FALSE, style = "grid", graph.magnif = 0.75, valid.col = TRUE, tmp.img.dir = "/tmp")
+```
+
