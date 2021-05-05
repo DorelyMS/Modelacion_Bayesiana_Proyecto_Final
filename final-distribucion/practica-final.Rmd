@@ -113,7 +113,7 @@ lapply(c(lib_proy, 'rethinking'), require, character.only = TRUE)
 ```
 
 
-# `r colorize("1. Modelos de conteo: Águilas", "green")`
+# `r colorize("1. Modelos de conteo: Águilas", "#00614E")`
 
 Los datos contenidos en `MASS` (eagles) son registros intento de robo entre
 águilas blancas en el estado de Washington. Ve la ayuda para mayor detalle en el
@@ -148,7 +148,9 @@ salmón. Llamemos al águila que se está alimentando la "víctima" y al ladrón
 "pirata". Utiliza los datos disponibles para construir un GLM binomial para
 predecir los intentos exitosos de piratería.
 
-(a) Considera el modelo:
+## `r colorize("1. a)", "#00614E")`
+
+Considera el modelo:
 
 $$
 \begin{align}
@@ -165,17 +167,21 @@ tamaño corporal grande, y finalmente $A$ es una variable ficticia que indica si
 el pirata era o no un adulto. Ajusta el modelo anterior a los datos de las
 águilas con la herramienta de tu preferencia e interpreta las estimaciones. 
 
-(b) Luego grafica las predicciones posteriores. Para esto calcula y muestra
+## `r colorize("1. b)", "#00614E")`
+
+Luego grafica las predicciones posteriores. Para esto calcula y muestra
 tanto: 1) la predicción de la probabilidad de éxito y su intervalo de
 credibilidad de 89\% para cada observación en los datos; como: 2) el número de
 éxitos y su intervalo del 89\%. ¿Qué información proporciona cada tipo de
 predicción posterior?
 
-(c) Ahora intenta mejorar el modelo. Considera una interacción entre el tamaño y
+## `r colorize("1. c)", "#00614E")`
+
+Ahora intenta mejorar el modelo. Considera una interacción entre el tamaño y
 edad de los piratas. Compara la capacidad predictiva de los modelos. Interpreta
 los resultados.
 
-# `r colorize("2. Extensiones de modelos de conteo: huracanes", "green")`
+# `r colorize("2. Extensiones de modelos de conteo: huracanes", "#00614E")`
 
 En 2014, se publicó un artículo titulado [*"Female hurricanes are deadlier than
 male hurricanes"*](https://www.pnas.org/content/111/24/8782). Como sugiere el
@@ -218,21 +224,27 @@ Familiarízate con las columnas inspeccionando la ayuda `?Hurricanes`. En este
 problema, te concentrarás en predecir muertes usando la feminidad de cada nombre
 del huracán. 
 
-a) Ajustaremos e interpretaremos el modelo más simple posible, un
+## `r colorize("2. a)", "#00614E")`
+
+Ajustaremos e interpretaremos el modelo más simple posible, un
 modelo de Poisson de muertes utilizando la feminidad como predictor. Puede
 utilizar quap o ulam. Compara el modelo a un modelo de muertes Poisson con sólo
 intercepto. ¿Qué tan fuerte es la asociación entre la feminidad del nombre y el
 número de muertes? ¿Qué tormentas ajustan bien con el modelo? ¿Qué tormentas son
 las que no son tan fáciles de predecir?
 
-b) Los conteo casi siempre están demasiado dispersos en relación con una
+## `r colorize("2. b)", "#00614E")`
+
+Los conteo casi siempre están demasiado dispersos en relación con una
 distribución Poisson. Así que ajusta un Modelo gamma-Poisson (también conocido
 como binomial-negativo) para predecir muertes utilizando la feminidad. Demuestra
 que el modelo con sobre-dispersión ya no muestra un resultado positivo tan
 preciso entre feminidad y muerte, con un intervalo de 89% que se superpone cero.
 ¿Puedes explicar por qué la asociación disminuyó?
 
-c) En los datos, hay dos medidas del potencial de letalidad de un huracán:
+## `r colorize("2. c)", "#00614E")`
+
+En los datos, hay dos medidas del potencial de letalidad de un huracán:
 `damage_norm` y `min_pressure`. Consulta `?Hurricanes`. Hace algo de sentido
 imaginar que la feminidad de un nombre importa más cuando el huracán es en sí
 mismo mortal. Esto implica una interacción entre la feminidad y posiblemente una
@@ -241,7 +253,9 @@ estas interacciones. Interpreta y compara los modelos. Al interpretar las
 estimaciones, te puede ayudar a generar predicciones que contrasten los
 huracanes con nombres masculinos y femeninos. ¿Son probables los coeficientes?
 
-d) En el artículo original sobre huracanes, se utilizó directamente el daño por
+## `r colorize("2. d)", "#00614E")`
+
+En el artículo original sobre huracanes, se utilizó directamente el daño por
 tormenta (`damage_norm`). Esta suposición implica que la mortalidad aumenta
 exponencialmente con aumento lineal en la fuerza de la tormenta. Esto debido a
 que en regresión Poisson usamos un enlace logarítmico. Entonces, vale la pena
@@ -253,7 +267,7 @@ directamente. Compara la capacidad predictiva, así como sus predicciones
 implícitas. ¿Qué es lo que concluyes?
 
 
-# `r colorize("3. Inferencia Causal: experimentos aleatorizados", "green")`
+# `r colorize("3. Inferencia Causal: experimentos aleatorizados", "#00614E")`
 
 Distribuciones muestrales bajo aleatorización: Utilice la covariable y el
 potencial de salida (*potential outcome*) de los datos en la tabla 18.1 del
@@ -292,7 +306,7 @@ utilizando cada una de las siguientes estimaciones:
 • Regresión del indicador de tratamiento, edad, sexo e interacción tratamiento
 $\times$ sexo.
 
-# `r colorize("4. Inferencia Causal y Modelos de Regresión: vacas", "green")`
+# `r colorize("4. Inferencia Causal y Modelos de Regresión: vacas", "#00614E")`
 
 *Aleatorización desordenada*: los datos de `vacas.txt` contiene datos de un
 experimento que se llevó a cabo con 50 vacas para estimar el efecto de un
@@ -313,19 +327,25 @@ es porque las decisiones de volver a aleatorizar no son explicados.
 Consideraremos diferentes estimaciones del efecto del complemento en la grasa
 láctea media diaria producida.
 
-a) Considera la regresión massimple de la grasa láctea media diaria con el nivel
+## `r colorize("4. a)", "#00614E")`
+
+Considera la regresión massimple de la grasa láctea media diaria con el nivel
 de complemento. Calcula el efecto del tratamiento estimado (coeficiente de
 regresión) y el error estándar, y explica por qué este no es un análisis
 completamente apropiado dada la aleatorización utilizada.
 
-b) Agrega más predictores al modelo. Explica el razonamiento para la elección de
+## `r colorize("4. b)", "#00614E")`
+
+Agrega más predictores al modelo. Explica el razonamiento para la elección de
 covariables en el modelo. Compare el efecto estimado del tratamiento con el
 resultado de (a).
 
-c) Repite (b), esta vez considerando el nivel del complemento como un predictor
+## `r colorize("4. c)", "#00614E")`
+
+Repite (`r colorize("4. b", "#00614E")`), esta vez considerando el nivel del complemento como un predictor
 categórico con cuatro niveles. Haga una gráfica que muestre la estimación (y el
 error estándar) del efecto del tratamiento en cada nivel, y también mostrando la
-inferencia del modelo ajustado en (b).
+inferencia del modelo ajustado en (`r colorize("4. b", "#00614E")`).
 
 
 ```{r, warning=FALSE, message=FALSE, cache = TRUE}
