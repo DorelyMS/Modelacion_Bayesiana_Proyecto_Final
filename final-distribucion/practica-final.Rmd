@@ -1,7 +1,8 @@
 ---
 title:
   - "![](./Imagen_logo_ITAM.jpg){width=10in}"
-  - <center><h1><div class="green"> **PRÁCTICA FINAL METODOS BAYESIANOS - PRIMAVERA 2021** </div></h1><center>
+  - <center><h1><div class="green"> **PRÁCTICA FINAL METODOS BAYESIANOS** </div></h1><center>
+  - <center><h1><div class="green"> PRIMAVERA 2021 </div></h1><center>
   - "![](./Imagen_espacio.jpg){width=10in}"
 author:
   - <center><h1><div class="darkgreen"> **EQUIPO 08** </div></h1><center>
@@ -14,16 +15,28 @@ output:
   html_document: default
 ---
 
+<!-- Justificamos el texto -->
+<style>
+body {
+text-align: justify}
+</style>
+
 ```{r, echo=FALSE}
-colorize <- function(x, color) {
-  if (knitr::is_latex_output()) {
-    sprintf("\\textcolor{%s}{%s}", color, x)
-  } else if (knitr::is_html_output()) {
-    sprintf("<span style='color: %s;'>%s</span>", color, 
-      x)
-  } else x
+# Función para dar color al texto que se pasa como parámetro
+colorize <- function(texto, color="#00614E") {
+if (knitr::is_html_output()) {
+    sprintf("<span style='color: %s;'>%s</span>", color, texto)
+  }
+}
+
+# Función para enmarcar texto en cuadro de color
+col_square <- function(texto, color1="#00614E", color2="#FFFFFF"){
+  if(knitr::is_html_output()){
+    sprintf("<br/><br/><div style='text-align: left; border: 10px solid %s; font-weight:normal; font-size: 35px; background-color: %s; color: %s;'> %s </div><br/>",color1,color1,color2,texto)
+  }
 }
 ```
+
 
 **Entrega:** 
 
@@ -113,7 +126,7 @@ lapply(c(lib_proy, 'rethinking'), require, character.only = TRUE)
 ```
 
 
-# `r colorize("1. Modelos de conteo: Águilas", "#00614E")`
+`r col_square("1. Modelos de conteo: Águilas")`
 
 Los datos contenidos en `MASS` (eagles) son registros intento de robo entre
 águilas blancas en el estado de Washington. Ve la ayuda para mayor detalle en el
@@ -124,13 +137,13 @@ data(eagles)
 
 eagles %>%
   head() %>%
-  kbl(digits=2) %>%
+  kbl(digits=2, format.args = list(big.mark = ",")) %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
 ```{r, warning=FALSE, message=FALSE, cache = TRUE}
 descr(eagles) %>%
-  kbl(digits=2) %>%
+  kbl(digits=2, format.args = list(big.mark = ",")) %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
@@ -148,7 +161,7 @@ salmón. Llamemos al águila que se está alimentando la "víctima" y al ladrón
 "pirata". Utiliza los datos disponibles para construir un GLM binomial para
 predecir los intentos exitosos de piratería.
 
-## `r colorize("1. a)", "#00614E")`
+## `r colorize("1. a)")`
 
 Considera el modelo:
 
@@ -167,7 +180,7 @@ tamaño corporal grande, y finalmente $A$ es una variable ficticia que indica si
 el pirata era o no un adulto. Ajusta el modelo anterior a los datos de las
 águilas con la herramienta de tu preferencia e interpreta las estimaciones. 
 
-## `r colorize("1. b)", "#00614E")`
+## `r colorize("1. b)")`
 
 Luego grafica las predicciones posteriores. Para esto calcula y muestra
 tanto: 1) la predicción de la probabilidad de éxito y su intervalo de
@@ -175,13 +188,13 @@ credibilidad de 89\% para cada observación en los datos; como: 2) el número de
 éxitos y su intervalo del 89\%. ¿Qué información proporciona cada tipo de
 predicción posterior?
 
-## `r colorize("1. c)", "#00614E")`
+## `r colorize("1. c)")`
 
 Ahora intenta mejorar el modelo. Considera una interacción entre el tamaño y
 edad de los piratas. Compara la capacidad predictiva de los modelos. Interpreta
 los resultados.
 
-# `r colorize("2. Extensiones de modelos de conteo: huracanes", "#00614E")`
+`r col_square("2. Extensiones de modelos de conteo: huracanes")`
 
 En 2014, se publicó un artículo titulado [*"Female hurricanes are deadlier than
 male hurricanes"*](https://www.pnas.org/content/111/24/8782). Como sugiere el
@@ -200,13 +213,13 @@ data(Hurricanes)
 
 Hurricanes %>%
   head() %>%
-  kbl(digits=2) %>%
+  kbl(digits=2, format.args = list(big.mark = ",")) %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
 ```{r, warning=FALSE, message=FALSE, cache = TRUE}
 descr(Hurricanes) %>%
-  kbl(digits=2) %>%
+  kbl(digits=2, format.args = list(big.mark = ",")) %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
@@ -224,7 +237,7 @@ Familiarízate con las columnas inspeccionando la ayuda `?Hurricanes`. En este
 problema, te concentrarás en predecir muertes usando la feminidad de cada nombre
 del huracán. 
 
-## `r colorize("2. a)", "#00614E")`
+## `r colorize("2. a)")`
 
 Ajustaremos e interpretaremos el modelo más simple posible, un
 modelo de Poisson de muertes utilizando la feminidad como predictor. Puede
@@ -233,7 +246,7 @@ intercepto. ¿Qué tan fuerte es la asociación entre la feminidad del nombre y 
 número de muertes? ¿Qué tormentas ajustan bien con el modelo? ¿Qué tormentas son
 las que no son tan fáciles de predecir?
 
-## `r colorize("2. b)", "#00614E")`
+## `r colorize("2. b)")`
 
 Los conteo casi siempre están demasiado dispersos en relación con una
 distribución Poisson. Así que ajusta un Modelo gamma-Poisson (también conocido
@@ -242,7 +255,7 @@ que el modelo con sobre-dispersión ya no muestra un resultado positivo tan
 preciso entre feminidad y muerte, con un intervalo de 89% que se superpone cero.
 ¿Puedes explicar por qué la asociación disminuyó?
 
-## `r colorize("2. c)", "#00614E")`
+## `r colorize("2. c)")`
 
 En los datos, hay dos medidas del potencial de letalidad de un huracán:
 `damage_norm` y `min_pressure`. Consulta `?Hurricanes`. Hace algo de sentido
@@ -253,7 +266,7 @@ estas interacciones. Interpreta y compara los modelos. Al interpretar las
 estimaciones, te puede ayudar a generar predicciones que contrasten los
 huracanes con nombres masculinos y femeninos. ¿Son probables los coeficientes?
 
-## `r colorize("2. d)", "#00614E")`
+## `r colorize("2. d)")`
 
 En el artículo original sobre huracanes, se utilizó directamente el daño por
 tormenta (`damage_norm`). Esta suposición implica que la mortalidad aumenta
@@ -267,7 +280,7 @@ directamente. Compara la capacidad predictiva, así como sus predicciones
 implícitas. ¿Qué es lo que concluyes?
 
 
-# `r colorize("3. Inferencia Causal: experimentos aleatorizados", "#00614E")`
+`r col_square("3. Inferencia Causal: experimentos aleatorizados")`
 
 Distribuciones muestrales bajo aleatorización: Utilice la covariable y el
 potencial de salida (*potential outcome*) de los datos en la tabla 18.1 del
@@ -283,7 +296,7 @@ omega <- tibble(female = factor(rep(rep(c(1,0), each = 2), 2)),
 
 omega %>%
   head() %>%
-  kbl(digits=2)  %>%
+  kbl(digits=2, format.args = list(big.mark = ","))  %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 
 ```
@@ -306,7 +319,8 @@ utilizando cada una de las siguientes estimaciones:
 • Regresión del indicador de tratamiento, edad, sexo e interacción tratamiento
 $\times$ sexo.
 
-# `r colorize("4. Inferencia Causal y Modelos de Regresión: vacas", "#00614E")`
+
+`r col_square("4. Inferencia Causal y Modelos de Regresión: vacas")`
 
 *Aleatorización desordenada*: los datos de `vacas.txt` contiene datos de un
 experimento que se llevó a cabo con 50 vacas para estimar el efecto de un
@@ -327,25 +341,25 @@ es porque las decisiones de volver a aleatorizar no son explicados.
 Consideraremos diferentes estimaciones del efecto del complemento en la grasa
 láctea media diaria producida.
 
-## `r colorize("4. a)", "#00614E")`
+## `r colorize("4. a)")`
 
 Considera la regresión massimple de la grasa láctea media diaria con el nivel
 de complemento. Calcula el efecto del tratamiento estimado (coeficiente de
 regresión) y el error estándar, y explica por qué este no es un análisis
 completamente apropiado dada la aleatorización utilizada.
 
-## `r colorize("4. b)", "#00614E")`
+## `r colorize("4. b)")`
 
 Agrega más predictores al modelo. Explica el razonamiento para la elección de
 covariables en el modelo. Compare el efecto estimado del tratamiento con el
 resultado de (a).
 
-## `r colorize("4. c)", "#00614E")`
+## `r colorize("4. c)")`
 
-Repite (`r colorize("4. b", "#00614E")`), esta vez considerando el nivel del complemento como un predictor
+Repite (**`r colorize("4. b", "#00614E")`**), esta vez considerando el nivel del complemento como un predictor
 categórico con cuatro niveles. Haga una gráfica que muestre la estimación (y el
 error estándar) del efecto del tratamiento en cada nivel, y también mostrando la
-inferencia del modelo ajustado en (`r colorize("4. b", "#00614E")`).
+inferencia del modelo ajustado en (**`r colorize("4. b", "#00614E")`**).
 
 
 ```{r, warning=FALSE, message=FALSE, cache = TRUE}
@@ -360,14 +374,14 @@ Vacas<-as.tibble(Vacas)
 
 Vacas %>%
   head() %>%
-  kbl(digits=2)  %>%
+  kbl(digits=2, format.args = list(big.mark = ","))  %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
   # kable_material(c("striped"))
 ```
 
 ```{r, warning=FALSE, message=FALSE, cache = TRUE}
 descr(Vacas) %>%
-  kbl(digits=2) %>%
+  kbl(digits=2, format.args = list(big.mark = ",")) %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
@@ -379,4 +393,11 @@ descr(Vacas) %>%
 # visualizarse el summary cuando se genera el html)
 dfSummary(Vacas, plain.ascii = FALSE, style = "grid", graph.magnif = 0.75, valid.col = TRUE, tmp.img.dir = "/tmp")
 ```
+
+
+
+
+
+
+
 
