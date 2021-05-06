@@ -113,7 +113,7 @@ theme_set(theme_linedraw())
 
 # Creamos una lista con las librerías, luego obtenemos las que no se tienen
 # instaladas, luego instalamos las que hagan falta
-lib_proy <- c('summarytools','latex2exp', 'kableExtra')
+lib_proy <- c('summarytools','latex2exp', 'MASS', 'kableExtra', 'tidybayes')
 lib_proy_faltantes <- lib_proy[!(lib_proy %in% installed.packages()[ , "Package"])]
 if(length(lib_proy_faltantes)) install.packages(lib_proy_faltantes)
 
@@ -156,6 +156,7 @@ descr(eagles) %>%
 dfSummary(eagles, plain.ascii = FALSE, style = "grid", graph.magnif = 0.75, valid.col = FALSE, tmp.img.dir = "/tmp")
 ```
 
+
 Mientras un águila se alimenta, a veces otra se abalanza y trata de robar el
 salmón. Llamemos al águila que se está alimentando la "víctima" y al ladrón el
 "pirata". Utiliza los datos disponibles para construir un GLM binomial para
@@ -180,6 +181,61 @@ tamaño corporal grande, y finalmente $A$ es una variable ficticia que indica si
 el pirata era o no un adulto. Ajusta el modelo anterior a los datos de las
 águilas con la herramienta de tu preferencia e interpreta las estimaciones. 
 
+///////////////////////////////////////////////////////////////////////
+Fit the model above to the eagles data, using both quap and ulam. Is the quadratic approximation okay?
+
+Answer: First, we have to make our dummy variables:
+
+
+```{r}
+d <- eagles
+d$pirateL <- ifelse(d$P == "L", 1, 0)
+d$victimL <- ifelse(d$V == "L", 1, 0)
+d$pirateA <- ifelse(d$A == "A", 1, 0)
+```
+
+Fitting the models is now trivial:
+
+```{r}
+# define model list specification
+f <- alist(
+  y ~ dbinom(n, p),
+  logit(p) <- a + bP * pirateL + bV * victimL + bA * pirateA,
+  a ~ dnorm(0, 1.5),
+  bP ~ dnorm(0, .5),
+  bV ~ dnorm(0, .5),
+  bA ~ dnorm(0, .5)
+)
+## quap model
+mH3quap <- quap(f, data = d)
+## ulam model
+mH3ulam <- ulam(f, data = d, chains = 4, log_lik = TRUE)
+```
+
+Again, we visualise the parameter estimates
+
+```{r}
+plot(coeftab(mH3quap, mH3ulam),
+  labels = paste(rep(rownames(coeftab(mH3quap, mH3ulam)@coefs), each = 2),
+    rep(c("MCMC", "quap"), nrow(coeftab(mH3quap, mH3ulam)@coefs) * 2),
+    sep = "-"
+  )
+)
+```
+
+These are pretty similar looking to me.
+
+
+
+
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////
+
 ## `r colorize("1. b)")`
 
 Luego grafica las predicciones posteriores. Para esto calcula y muestra
@@ -188,11 +244,130 @@ credibilidad de 89\% para cada observación en los datos; como: 2) el número de
 éxitos y su intervalo del 89\%. ¿Qué información proporciona cada tipo de
 predicción posterior?
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////
+Question: Now interpret the estimates. If the quadratic approximation turned out okay, then it’s okay to use the quap estimates. Otherwise stick to ulam estimates. Then plot the posterior predictions. Compute and display both (1) the predicted probability of success and its 89% interval for each row () in the data, as well as (2) the predicted success count and its 89% interval. What different information does each type of posterior prediction provide?
+
+Answer: Personally, I don’t think there’s much difference between the model estimates. Here, I am sticking to the ulam model, because I feel like it. No other reason.
+
+Let’s start by getting a baseline understanding of how often a non-adult, small-bodied pirate is able to fetch a salmon from a small-bodied victim(all dummy variables are at value 0) - this is our intercept a. These are log-odds:
+
+```{r}
+post <- extract.samples(mH3ulam)
+mean(logistic(post$a))
+```
+
+We expect about 0.57% of all of our immature, small pirates to be successful when pirating on small victims.
+
+Now that we are armed with our baseline, we are ready to look at how our slope parameters affect what’s happening in our model.
+
+First, we start with the effect of pirate-body-size (bP):
+
+```{r}
+mean(logistic(post$a + post$bP))
+```
+
+Damn. Large-bodied pirates win almost all of the time! We could repeat this for all slope parameters, but I find it prudent to move on to our actual task:
+
+Probability of success:
+
+```{r}
+d$psuccess <- d$y / d$n # successes divided by attempts
+p <- link(mH3ulam) # success probability with inverse link
+## Mean and Interval Calculation
+p.mean <- apply(p, 2, mean)
+p.PI <- apply(p, 2, PI)
+# plot raw proportions success for each case
+plot(d$psuccess,
+  col = rangi2,
+  ylab = "successful proportion", xlab = "case", xaxt = "n",
+  xlim = c(0.75, 8.25), pch = 16
+)
+# label cases on horizontal axis
+axis(1,
+  at = 1:8,
+  labels = c("LLA", "LSA", "LLI", "LSI", "SLA", "SSA", "SLI", "SSI") # same order as in data frame d
+)
+# display posterior predicted proportions successful
+points(1:8, p.mean)
+for (i in 1:8) lines(c(i, i), p.PI[, i])
+```
+
+Counts of successes:
+
+```{r}
+y <- sim(mH3ulam) # simulate posterior for counts of successes
+## Mean and Interval Calculation
+y.mean <- apply(y, 2, mean)
+y.PI <- apply(y, 2, PI)
+# plot raw counts success for each case
+plot(d$y,
+  col = rangi2,
+  ylab = "successful attempts", xlab = "case", xaxt = "n",
+  xlim = c(0.75, 8.25), pch = 16
+)
+# label cases on horizontal axis
+axis(1,
+  at = 1:8,
+  labels = c("LAL", "LAS", "LIL", "LIS", "SAL", "SAS", "SIL", "SIS")
+)
+# display posterior predicted successes
+points(1:8, y.mean)
+for (i in 1:8) lines(c(i, i), y.PI[, i])
+```
+
+In conclusion, the probability plot makes the different settings of predictor variables more comparable because the number of piracy attempts are ignored in setting the y-axis. The count plot, however, shows the additional uncertainty stemming from the underlying sample size.
+
+////////////////////////////////////////////////////////////////////////
+
+
 ## `r colorize("1. c)")`
 
 Ahora intenta mejorar el modelo. Considera una interacción entre el tamaño y
 edad de los piratas. Compara la capacidad predictiva de los modelos. Interpreta
 los resultados.
+
+///////////////////////////////////////////////////////////////////////
+Question: Now try to improve the model. Consider an interaction between the pirate’s size and age(immature or adult). Compare this model to the previous one, using WAIC. Interpret.
+
+Answer: Let’s fit a model with ulam containing the interaction effect we were asked for:
+
+```{r}
+mH3c <- ulam(
+  alist(
+    y ~ dbinom(n, p),
+    logit(p) <- a + bP * pirateL + bV * victimL + bA * pirateA + bPA * pirateL * pirateA,
+    a ~ dnorm(0, 1.5),
+    bP ~ dnorm(0, .5),
+    bV ~ dnorm(0, .5),
+    bA ~ dnorm(0, .5),
+    bPA ~ dnorm(0, .5)
+  ),
+  data = d, chains = 4, log_lik = TRUE
+)
+```
+
+```{r}
+compare(mH3ulam, mH3c)
+```
+
+This is quite obviously a tie. So what about the model estimates?
+
+```{r}
+plot(coeftab(mH3ulam, mH3c),
+  labels = paste(rep(rownames(coeftab(mH3ulam, mH3c)@coefs), each = 2),
+    rep(c("Base", "Interac"), nrow(coeftab(mH3ulam, mH3c)@coefs) * 2),
+    sep = "-"
+  )
+)
+```
+
+Jup, there’s not really much of a difference here. For the interaction model: the log-odds of successful piracy is just weakly bigger when the pirating individual is large and an adult. That is counter-intuitive, isn’t it? It is worth pointing out that the individual parameters for these conditions show the expected effects and the identified negative effect of their interaction may be down to the sparsity of the underlying data and we are also highly uncertain of it’s sign to begin with.
+
+///////////////////////////////////////////////////////////////////////
 
 `r col_square("2. Extensiones de modelos de conteo: huracanes")`
 
@@ -246,6 +421,100 @@ intercepto. ¿Qué tan fuerte es la asociación entre la feminidad del nombre y 
 número de muertes? ¿Qué tormentas ajustan bien con el modelo? ¿Qué tormentas son
 las que no son tan fáciles de predecir?
 
+//////////////////////////////////////////////////////////////////////////
+
+Question: In 2014, a paper was published that was entitled “Female hurricanes are deadlier than male hurricanes.” As the title suggests, the paper claimed that hurricanes with female names have caused greater loss of life, and the explanation given is that people unconsciously rate female hurricanes as less dangerous and so are less likely to evacuate. Statisticians severely criticized the paper after publication. Here, you’ll explore the complete data used in the paper and consider the hypothesis that hurricanes with female names are deadlier. Load the data with:
+
+Acquaint yourself with the columns by inspecting the help ?Hurricanes. In this problem, you’ll focus on predicting deaths using femininity of each hurricane’s name.
+
+Fit and interpret the simplest possible model, a Poisson model of deaths using femininity as a predictor. You can use quap or ulam. Compare the model to an intercept-only Poisson model of deaths. How strong is the association between femininity of name and deaths? Which storms does the model fit (retrodict) well? Which storms does it fit poorly?
+
+Answer: First, let’s prepare the data:
+
+```{r}
+d <- Hurricanes # load data on object called d
+d$fem_std <- (d$femininity - mean(d$femininity)) / sd(d$femininity) # standardised femininity
+dat <- list(D = d$deaths, F = d$fem_std)
+```
+
+Now that we have standardised data for the feminity of our hurricane names which makes priors easier to formulate, we can specify our initial model idea:
+
+```{r}
+# model formula
+f <- alist(
+  D ~ dpois(lambda), # poisson outcome distribution
+  log(lambda) <- a + bF * F, # log-link for lambda with linear model
+  # priors in log-space, 0 corresponds to outcome of 1
+  a ~ dnorm(1, 1),
+  bF ~ dnorm(0, 1)
+)
+```
+
+But are these priors any good? Let’s simulate them why don’t we:
+
+```{r}
+N <- 1e3
+a <- rnorm(N, 1, 1)
+bF <- rnorm(N, 0, 1)
+F_seq <- seq(from = -2, to = 2, length.out = 30) # sequence from -2 to 2 because femininity data is standardised
+plot(NULL,
+  xlim = c(-2, 2), ylim = c(0, 500),
+  xlab = "name femininity (std)", ylab = "deaths"
+)
+for (i in 1:N) {
+  lines(F_seq,
+    exp(a[i] + bF[i] * F_seq), # inverse link to get outcome scale
+    col = grau(), lwd = 1.5
+  )
+}
+```
+
+I’d think that’s pretty alright. We allow for both positive and negative trends between death toll and femininity of hurricane name, but don’t have a lot of explosive trends in our priors. These strong trends are quite unintuitive. Our vast majority of trends however are very ambiguous and so I proceed with these priors and run the model:
+
+```{r}
+mH1 <- ulam(f, data = dat, chains = 4, cores = 4, log_lik = TRUE)
+precis(mH1)
+```
+
+So according to this, there is a positive relationship between hurricane name femininity and death toll. Which hurricanes do we actually retrodict well, though? Let’s plot, this:
+
+```{r}
+# plot raw data
+plot(dat$F, dat$D,
+  pch = 16, lwd = 2,
+  col = rangi2, xlab = "femininity (std)", ylab = "deaths"
+)
+# compute model-based trend
+pred_dat <- list(F = seq(from = -2, to = 2, length.out = 1e2))
+lambda <- link(mH1, data = pred_dat) # predict deaths
+lambda.mu <- apply(lambda, 2, mean) # get mean prediction
+lambda.PI <- apply(lambda, 2, PI) # get prediction interval
+# superimpose trend
+lines(pred_dat$F, lambda.mu)
+shade(lambda.PI, pred_dat$F)
+# compute sampling distribution
+deaths_sim <- sim(mH1, data = pred_dat) # simulate posterior observations
+deaths_sim.PI <- apply(deaths_sim, 2, PI) # get simulation interval
+# superimpose sampling interval as dashed lines
+lines(pred_dat$F, deaths_sim.PI[1, ], lty = 2)
+lines(pred_dat$F, deaths_sim.PI[2, ], lty = 2)
+```
+
+
+Ok. There is quite a bit to unpack here. First of all, our model does not retrodict many of the hurricanes well even though it is quite certain of its predictions (grey shaded area which is hardly visible). Quite obviously, this model misses many of the hurricane death tolls to the right hand side of the above plot. This is a clear sign of over-dispersion which our model failed to account for. The weak, positive trend we are seeing here seems to be informed largely by these highly influential data points. We can assess whether and how influential some data points are with the Paraeto-K values (anything above 1 indicates an influential data point) following:
+
+```{r}
+ggplot(as.data.frame(PSISk(mH1)), aes(x = PSISk(mH1))) +
+  stat_halfeye() +
+  theme_bw() +
+  labs(title = "Paraeto-K values", subtitle = "Values > 1 indicate highly influential data")
+
+```
+
+Boy! Some hurricanes really do drive our model to a big extent!
+
+//////////////////////////////////////////////////////////////////////////
+
 ## `r colorize("2. b)")`
 
 Los conteo casi siempre están demasiado dispersos en relación con una
@@ -254,6 +523,109 @@ como binomial-negativo) para predecir muertes utilizando la feminidad. Demuestra
 que el modelo con sobre-dispersión ya no muestra un resultado positivo tan
 preciso entre feminidad y muerte, con un intervalo de 89% que se superpone cero.
 ¿Puedes explicar por qué la asociación disminuyó?
+
+
+/////////////////////////////////////////////////////////////////////////
+Question: Counts are nearly always over-dispersed relative to Poisson. So fit a gamma-Poisson (aka negative-binomial) model to predict deaths using femininity. Show that the over-dispersed model no longer shows as precise a positive association between femininity and deaths, with an 89% interval that overlaps zero. Can you explain why the association diminished in strength?
+
+Answer: To start this off, I load the library and data again, so much of the exercise and my solutions can stand by itself:
+
+```{r}
+d <- Hurricanes # load data on object called d
+d$fem_std <- (d$femininity - mean(d$femininity)) / sd(d$femininity) # standardised femininity
+dat <- list(D = d$deaths, F = d$fem_std)
+```
+
+Again, with the data prepared, we fit our model - the same model as before just with a different outcome distribution:
+
+```{r}
+mH2 <- ulam(
+  alist(
+    D ~ dgampois(lambda, scale),
+    log(lambda) <- a + bF * F,
+    a ~ dnorm(1, 1),
+    bF ~ dnorm(0, 1),
+    scale ~ dexp(1) # strictly positive hence why exponential prior
+  ),
+  data = dat, chains = 4, cores = 4, log_lik = TRUE
+)
+precis(mH2)
+```
+
+Cool. Our previously identified positive relationship between standardised femininity of hurricane name and death toll is still there albeit slightly diminished in magnitude. However, the credible interval around it has widened considerably and overlaps zero now.
+
+Let’s compare the estimates of our models side by side:
+
+```{r}
+plot(coeftab(mH1, mH2))
+```
+
+These shows quite clearly how our new model is much more uncertain of the parameters.
+
+So what about the predictions of this new model? I plot them the exact same way as previously:
+
+```{r}
+# plot raw data
+plot(dat$F, dat$D,
+  pch = 16, lwd = 2,
+  col = rangi2, xlab = "femininity (std)", ylab = "deaths"
+)
+# compute model-based trend
+pred_dat <- list(F = seq(from = -2, to = 2, length.out = 1e2))
+lambda <- link(mH2, data = pred_dat)
+lambda.mu <- apply(lambda, 2, mean)
+lambda.PI <- apply(lambda, 2, PI)
+# superimpose trend
+lines(pred_dat$F, lambda.mu)
+shade(lambda.PI, pred_dat$F)
+# compute sampling distribution
+deaths_sim <- sim(mH2, data = pred_dat)
+deaths_sim.PI <- apply(deaths_sim, 2, PI)
+# superimpose sampling interval as dashed lines
+lines(pred_dat$F, deaths_sim.PI[1, ], lty = 2)
+lines(pred_dat$F, deaths_sim.PI[2, ], lty = 2)
+```
+
+What’s there left to say other than: “Look at that increased uncertainty of our model” at this point? Well, we can talk about the accuracy of our predictions. They still blow. The uncertainty of our model is nice and all, but with a predictive accuracy like this why would we trust the model?
+
+For now, let’s turn to the conceptual part of this exercise: “Why has the association diminished with the new model?” The question comes down to understanding what the gamma distribution does to our model. The gamma distribution allows for a death rate to be calculated for each outcome individually rather than one overall death rate for all hurricanes. These individual rates are sampled from a common distribution which is a function of the femininity of hurricane names. As a matter of fact, we can plot this:
+
+```{r}
+post <- extract.samples(mH2)
+par(mfrow = c(1, 3))
+for (fem in -1:1) {
+  for (i in 1:1e2) {
+    curve(dgamma2(
+      x, # where to calculate density
+      exp(post$a[i] + post$bF[i] * fem), # linear model with inverse link applied
+      post$scale[i] # scale for gamma
+    ),
+    from = 0, to = 70, xlab = "mean deaths", ylab = "Density",
+    ylim = c(0, 0.19), col = col.alpha("black", 0.2),
+    add = ifelse(i == 1, FALSE, TRUE)
+    )
+  }
+  mtext(concat("femininity  =   ", fem))
+}
+```
+
+These are the gamma distributions samples from the posterior distribution of death rates when assuming same femininity of name for all of them at three different levels of femininity. Yes, a distribution sampled from another distribution. The above plots simply show the uncertainty of which gamma distribution to settle on.
+
+Since our model and gamma distributions are informed by a, bF, and the scale for the gamma distribution at the same time many combinations of a and bF are consistent with the data which results in a wider posterior distribution.
+
+Finally, let’s look at Paraeto-K values and potentially influential data again:
+
+```{r}
+ggplot(as.data.frame(PSISk(mH2)), aes(x = PSISk(mH2))) +
+  stat_halfeye() +
+  theme_bw() +
+  labs(title = "Paraeto-K values", subtitle = "Values > 1 indicate highly influential data")
+```
+
+MUCH BETTER than before!
+
+
+/////////////////////////////////////////////////////////////////////////
 
 ## `r colorize("2. c)")`
 
@@ -265,6 +637,117 @@ o las dos `damage_norm` y `min_pressure`. Ajusta una serie de modelos evaluando
 estas interacciones. Interpreta y compara los modelos. Al interpretar las
 estimaciones, te puede ayudar a generar predicciones que contrasten los
 huracanes con nombres masculinos y femeninos. ¿Son probables los coeficientes?
+
+/////////////////////////////////////////////////////////////////////////
+Question: In order to infer a strong association between deaths and femininity, it’s necessary to include an interaction effect. In the data, there are two measures of a hurricane’s potential to cause death: damage_norm and min_pressure. Consult ?Hurricanes for their meanings. It makes some sense to imagine that femininity of a name matters more when the hurricane is itself deadly. This implies an interaction between femininity and either or both of damage_norm and min_pressure. Fit a series of models evaluating these interactions. Interpret and compare the models. In interpreting the estimates, it may help to generate counterfactual predictions contrasting hurricanes with masculine and feminine names. Are the effect sizes plausible?
+
+Answer: To start this off, I load the library and data again, so much of the exercise and my solutions can stand by itself:
+
+```{r}
+d <- Hurricanes # load data on object called d
+d$fem_std <- (d$femininity - mean(d$femininity)) / sd(d$femininity) # standardised femininity
+dat <- list(D = d$deaths, F = d$fem_std)
+dat$P <- standardize(d$min_pressure)
+dat$S <- standardize(d$damage_norm)
+```
+
+The data is ready and I step into my model fitting procedure. Here, I start with a basic model which builds on the previous gamma-Poisson model by adding an interaction between femininity and min_pressure:
+
+```{r}
+mH3a <- ulam(
+  alist(
+    D ~ dgampois(lambda, scale),
+    log(lambda) <- a + bF * F + bP * P + bFP * F * P,
+    a ~ dnorm(1, 1),
+    c(bF, bP, bFP) ~ dnorm(0, 1),
+    scale ~ dexp(1)
+  ),
+  data = dat, cores = 4, chains = 4, log_lik = TRUE
+)
+precis(mH3a)
+```
+
+As minimum pressure gets lower, a storm grows stronger (I was confused by that myself when answering these exercises). Quite obviously, the lower the pressure in a storm, the more severe the storm, and the more people die which is reflected by the negative value in bP. bF is still estimated to be positive. This time, the interval doesn’t even overlap zero. Meanwhile, the interaction effect bFP is positive. I find it hard to interpret this so I’d rather plot some predictions against real data:
+
+```{r}
+P_seq <- seq(from = -3, to = 2, length.out = 1e2) # pressure sequence
+# 'masculine' storms
+d_pred <- data.frame(F = -1, P = P_seq)
+lambda_m <- link(mH3a, data = d_pred)
+lambda_m.mu <- apply(lambda_m, 2, mean)
+lambda_m.PI <- apply(lambda_m, 2, PI)
+# 'feminine' storms
+d_pred <- data.frame(F = 1, P = P_seq)
+lambda_f <- link(mH3a, data = d_pred)
+lambda_f.mu <- apply(lambda_f, 2, mean)
+lambda_f.PI <- apply(lambda_f, 2, PI)
+# Plotting, sqrt() to make differences easier to spot, can't use log because there are storm with zero deaths
+plot(dat$P, sqrt(dat$D),
+  pch = 1, lwd = 2, col = ifelse(dat$F > 0, "red", "dark gray"),
+  xlab = "minimum pressure (std)", ylab = "sqrt(deaths)"
+)
+lines(P_seq, sqrt(lambda_m.mu), lty = 2)
+shade(sqrt(lambda_m.PI), P_seq)
+lines(P_seq, sqrt(lambda_f.mu), lty = 1, col = "red")
+shade(sqrt(lambda_f.PI), P_seq, col = col.alpha("red", 0.2))
+```
+
+Our model expects masculine (grey) storms to be less deadly, on average, than feminine (red) ones. As pressure drops (toward the rightward side of the plot above), these differences become smaller and smaller. Quite evidently, some of these storms are influencing what our model predicts much more so than others:
+
+```{r}
+ggplot(as.data.frame(PSISk(mH3a)), aes(x = PSISk(mH3a))) +
+  stat_halfeye() +
+  theme_bw() +
+  labs(title = "Paraeto-K values", subtitle = "Values > 1 indicate highly influential data")
+```
+
+Let’s turn to the second variable we may want to add damage_norm - the damage caused by each storm:
+
+```{r}
+mH3b <- ulam(
+  alist(
+    D ~ dgampois(lambda, scale),
+    log(lambda) <- a + bF * F + bS * S + bFS * F * S,
+    a ~ dnorm(1, 1),
+    c(bF, bS, bFS) ~ dnorm(0, 1),
+    scale ~ dexp(1)
+  ),
+  data = dat, chains = 4, cores = 4, log_lik = TRUE
+)
+precis(mH3b)
+```
+
+That just eradicated the effect of femininity of hurricane name (bF)! The newly added interaction parameter bFS is incredibly strong and positive. Again, let’s visualise this:
+
+```{r}
+S_seq <- seq(from = -1, to = 5.5, length.out = 1e2) # damage sequence
+# 'masculine' storms
+d_pred <- data.frame(F = -1, S = S_seq)
+lambda_m <- link(mH3b, data = d_pred)
+lambda_m.mu <- apply(lambda_m, 2, mean)
+lambda_m.PI <- apply(lambda_m, 2, PI)
+# 'feminine' storms
+d_pred <- data.frame(F = 1, S = S_seq)
+lambda_f <- link(mH3b, data = d_pred)
+lambda_f.mu <- apply(lambda_f, 2, mean)
+lambda_f.PI <- apply(lambda_f, 2, PI)
+# plot
+plot(dat$S, sqrt(dat$D),
+  pch = 1, lwd = 2, col = ifelse(dat$F > 0, "red", "dark gray"),
+  xlab = "normalized damage (std)", ylab = "sqrt(deaths)"
+)
+lines(S_seq, sqrt(lambda_m.mu), lty = 2)
+shade(sqrt(lambda_m.PI), S_seq)
+lines(S_seq, sqrt(lambda_f.mu), lty = 1, col = "red")
+shade(sqrt(lambda_f.PI), S_seq, col = col.alpha("red", 0.2))
+```
+
+We can clearly see how our model makes less of a distinction between masculine and feminine hurricanes overall at this point. Damage norm scales multiplicatively. The distances grow fast as we approach the rightward side of the plot. This is difficult for the model to account for. Hence why the model is underwhelming.
+
+So why is the interaction effect so strong? Probably because of those 3-4 highly influential feminine storms at the upper-righthand corner of our plot above which implies that feminine storms are especially deadly when they are damaging to begin with. Personally, I don’t trust this association and would argue that there is no logical reason for it and most likely an artefact of the limited data availability.
+
+
+////////////////////////////////////////////////////////////////////////
 
 ## `r colorize("2. d)")`
 
@@ -278,6 +761,75 @@ predictor. Usando la mejor estructura de modelo del inciso anterior, compara un
 modelo que usa `log(damage_norm)` a un modelo que usa `damage_norm`
 directamente. Compara la capacidad predictiva, así como sus predicciones
 implícitas. ¿Qué es lo que concluyes?
+
+////////////////////////////////////////////////////////////////////////
+Question: In the original hurricanes paper, storm damage (damage_norm) was used directly. This assumption implies that mortality increases exponentially with a linear increase in storm strength, because a Poisson regression uses a log link. So it’s worth exploring an alternative hypothesis: that the logarithm of storm strength is what matters. Explore this by using the logarithm of damage_norm as a predictor. Using the best model structure from the previous problem, compare a model that uses log(damage_norm) to a model that uses damage_norm directly. Compare their DIC/WAIC values as well as their implied predictions. What do you conclude?
+
+Answer: To start this off, I load the library and data again, so much of the exercise and my solutions can stand by itself:
+
+```{r}
+d <- Hurricanes # load data on object called d
+d$fem_std <- (d$femininity - mean(d$femininity)) / sd(d$femininity) # standardised femininity
+dat <- list(D = d$deaths, F = d$fem_std)
+dat$S2 <- standardize(log(d$damage_norm))
+```
+
+Let’s fit the model as before and compare it to the previously identified best model:
+
+```{r}
+mH4 <- ulam(
+  alist(
+    D ~ dgampois(lambda, scale),
+    log(lambda) <- a + bF * F + bS * S2 + bFS * F * S2,
+    a ~ dnorm(1, 1),
+    c(bF, bS, bFS) ~ dnorm(0, 1),
+    scale ~ dexp(1)
+  ),
+  data = dat, chains = 4, cores = 4, log_lik = TRUE
+)
+compare(mH3b, mH4, func = PSIS)
+```
+
+Model mH4 clearly outperforms the earlier (non-logarithmic) model mH3b. How do the parameter estimates look in comparison?
+
+```{r}
+plot(coeftab(mH3b, mH4),
+  labels = paste(rep(rownames(coeftab(mH3b, mH4)@coefs), each = 2),
+    rep(c("Norm", "Log"), nrow(coeftab(mH3b, mH4)@coefs) * 2),
+    sep = "-"
+  )
+)
+```
+
+With the log-transformed input, bFS has increased in magnitude. What do the resulting predictions look like?
+
+```{r}
+S2_seq <- seq(from = -3, to = 1.8, length.out = 1e2)
+# 'masculine' storms
+d_pred <- data.frame(F = -1, S2 = S2_seq)
+lambda_m <- link(mH4, data = d_pred)
+lambda_m.mu <- apply(lambda_m, 2, mean)
+lambda_m.PI <- apply(lambda_m, 2, PI)
+# 'feminine' storms
+d_pred <- data.frame(F = 1, S2 = S2_seq)
+lambda_f <- link(mH4, data = d_pred)
+lambda_f.mu <- apply(lambda_f, 2, mean)
+lambda_f.PI <- apply(lambda_f, 2, PI)
+# plot
+plot(dat$S2, sqrt(dat$D),
+  pch = 1, lwd = 2, col = ifelse(dat$F > 0, "red", "dark gray"),
+  xlab = "normalized damage (std)", ylab = "sqrt(deaths)"
+)
+lines(S2_seq, sqrt(lambda_m.mu), lty = 2)
+shade(sqrt(lambda_m.PI), S2_seq)
+lines(S2_seq, sqrt(lambda_f.mu), lty = 1, col = "red")
+shade(sqrt(lambda_f.PI), S2_seq, col = col.alpha("red", 0.2))
+
+```
+
+Now this model fits the data much better! Still not perfect, but much better.
+
+/////////////////////////////////////////////////////////////////////////
 
 
 `r col_square("3. Inferencia Causal: experimentos aleatorizados")`
