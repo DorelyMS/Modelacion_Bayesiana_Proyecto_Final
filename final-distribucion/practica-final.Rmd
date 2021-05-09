@@ -87,13 +87,14 @@ El examen está compuesto por cuatro apartados cuyos pesos son los siguientes:
 - Vacas      (25\%).  
 
 ```{r setup, include=FALSE}
-
 library(tidymodels)
 library(tidyverse)
 library(cmdstanr)
 library(rstanarm)
 library(bayesplot)
 library(loo)
+library(MASS) #data eagles
+library(brms) #modelos binomiales
 
 library(patchwork)
 library(scales)
@@ -101,6 +102,9 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning=FALSE,
                       fig.align = 'center', fig.width = 5, fig.height=3, cache = TRUE)
 comma <- function(x) format(x, digits = 2, big.mark = ",")
 theme_set(theme_linedraw())
+
+SEED <- 2021 #proponemos una semilla para reproducibilidad
+set.seed(SEED) 
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=T, results='hide'}
@@ -135,6 +139,7 @@ conjunto de datos:
 ```{r, warning=FALSE, message=FALSE, cache = TRUE, results='markup'}
 data(eagles)
 
+#?eagles
 eagles %>%
   head() %>%
   kbl(digits=2, format.args = list(big.mark = ",")) %>%
@@ -181,60 +186,37 @@ tamaño corporal grande, y finalmente $A$ es una variable ficticia que indica si
 el pirata era o no un adulto. Ajusta el modelo anterior a los datos de las
 águilas con la herramienta de tu preferencia e interpreta las estimaciones. 
 
-///////////////////////////////////////////////////////////////////////
-Fit the model above to the eagles data, using both quap and ulam. Is the quadratic approximation okay?
 
-Answer: First, we have to make our dummy variables:
+## `r colorize("Respuesta)", "#00614E")`
+
+```{r}
+#Guardamos el dataset para transformar
+aguilas <- eagles
+#creamos variables indicadoras a partir de las variables ficticias
+aguilas$pirataGrande <- ifelse(aguilas$P == "L", 1, 0)
+aguilas$victimaGrande <- ifelse(aguilas$V == "L", 1, 0)
+aguilas$pirataAdulto <- ifelse(aguilas$A == "A", 1, 0)
+```
+
+```{r}
+fit_1a<-brm(data=aguilas,
+            family = binomial,
+            y | trials(n) ~ 1 + pirataGrande+victimaGrande+pirataAdulto, #el evento si el robo fue exitoso como una binomial condicionada en el número de intentos
+            prior = c(prior(normal(0, 1.5), class = Intercept),
+                      prior(normal(0, 0.5), class = b)),
+            seed=SEED,
+            sample_prior = T, #pedimos muestras de la previa
+            file = "fits/aguilas.fit1a")
+
+summary(fit_1a, digits = 2)
+```
 
 
 ```{r}
-d <- eagles
-d$pirateL <- ifelse(d$P == "L", 1, 0)
-d$victimL <- ifelse(d$V == "L", 1, 0)
-d$pirateA <- ifelse(d$A == "A", 1, 0)
+print(fit_1a) #imprimimos el objeto con el modelo
 ```
 
-Fitting the models is now trivial:
 
-```{r}
-# define model list specification
-f <- alist(
-  y ~ dbinom(n, p),
-  logit(p) <- a + bP * pirateL + bV * victimL + bA * pirateA,
-  a ~ dnorm(0, 1.5),
-  bP ~ dnorm(0, .5),
-  bV ~ dnorm(0, .5),
-  bA ~ dnorm(0, .5)
-)
-## quap model
-mH3quap <- quap(f, data = d)
-## ulam model
-mH3ulam <- ulam(f, data = d, chains = 4, log_lik = TRUE)
-```
-
-Again, we visualise the parameter estimates
-
-```{r}
-plot(coeftab(mH3quap, mH3ulam),
-  labels = paste(rep(rownames(coeftab(mH3quap, mH3ulam)@coefs), each = 2),
-    rep(c("MCMC", "quap"), nrow(coeftab(mH3quap, mH3ulam)@coefs) * 2),
-    sep = "-"
-  )
-)
-```
-
-These are pretty similar looking to me.
-
-
-
-
-
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////
 
 ## `r colorize("1. b)")`
 
@@ -244,7 +226,11 @@ credibilidad de 89\% para cada observación en los datos; como: 2) el número de
 éxitos y su intervalo del 89\%. ¿Qué información proporciona cada tipo de
 predicción posterior?
 
+## `r colorize("Respuesta)", "#00614E")`
 
+```{r}
+
+```
 
 
 
