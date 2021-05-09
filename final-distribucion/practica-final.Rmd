@@ -189,6 +189,8 @@ el pirata era o no un adulto. Ajusta el modelo anterior a los datos de las
 
 ## `r colorize("Respuesta)", "#00614E")`
 
+Utilizaremos brm para el fit del modelo
+
 ```{r}
 #Guardamos el dataset para transformar
 aguilas <- eagles
@@ -216,7 +218,35 @@ summary(fit_1a, digits = 2)
 print(fit_1a) #imprimimos el objeto con el modelo
 ```
 
+Let’s start by getting a baseline understanding of how often a non-adult, small-bodied pirate is able to fetch a salmon from a small-bodied victim(all dummy variables are at value 0) - this is our intercept a. These are log-odds:
 
+```{r}
+mean(inv_logit_scaled(post$b_Intercept)) %>%
+  round(digits = 2)
+```
+
+We expect about 0.57% of all of our immature, small pirates to be successful when pirating on small victims.
+
+Now that we are armed with our baseline, we are ready to look at how our slope parameters affect what’s happening in our model.
+
+First, we start with the effect of pirate-body-size (bP):
+
+```{r}
+mean(inv_logit_scaled(post$b_Intercept+post$b_pirataGrande))%>%
+  round(digits = 2)
+```
+
+Large-bodied pirates win almost all of the time (87%)! We will repeat this for all slope parameters:
+
+```{r}
+mean(inv_logit_scaled(post$b_Intercept+post$b_victimaGrande))%>%
+  round(digits = 2)
+```
+
+```{r}
+mean(inv_logit_scaled(post$b_Intercept+post$b_pirataAdulto))%>%
+  round(digits = 2)
+```
 
 ## `r colorize("1. b)")`
 
@@ -228,37 +258,8 @@ predicción posterior?
 
 ## `r colorize("Respuesta)", "#00614E")`
 
-```{r}
+1. Probability of success:
 
-```
-
-
-
-////////////////////////////////////////////////////////////////////////
-Question: Now interpret the estimates. If the quadratic approximation turned out okay, then it’s okay to use the quap estimates. Otherwise stick to ulam estimates. Then plot the posterior predictions. Compute and display both (1) the predicted probability of success and its 89% interval for each row () in the data, as well as (2) the predicted success count and its 89% interval. What different information does each type of posterior prediction provide?
-
-Answer: Personally, I don’t think there’s much difference between the model estimates. Here, I am sticking to the ulam model, because I feel like it. No other reason.
-
-Let’s start by getting a baseline understanding of how often a non-adult, small-bodied pirate is able to fetch a salmon from a small-bodied victim(all dummy variables are at value 0) - this is our intercept a. These are log-odds:
-
-```{r}
-post <- extract.samples(mH3ulam)
-mean(logistic(post$a))
-```
-
-We expect about 0.57% of all of our immature, small pirates to be successful when pirating on small victims.
-
-Now that we are armed with our baseline, we are ready to look at how our slope parameters affect what’s happening in our model.
-
-First, we start with the effect of pirate-body-size (bP):
-
-```{r}
-mean(logistic(post$a + post$bP))
-```
-
-Damn. Large-bodied pirates win almost all of the time! We could repeat this for all slope parameters, but I find it prudent to move on to our actual task:
-
-Probability of success:
 
 ```{r}
 d$psuccess <- d$y / d$n # successes divided by attempts
@@ -282,7 +283,7 @@ points(1:8, p.mean)
 for (i in 1:8) lines(c(i, i), p.PI[, i])
 ```
 
-Counts of successes:
+2.Counts of successes:
 
 ```{r}
 y <- sim(mH3ulam) # simulate posterior for counts of successes
@@ -307,53 +308,68 @@ for (i in 1:8) lines(c(i, i), y.PI[, i])
 
 In conclusion, the probability plot makes the different settings of predictor variables more comparable because the number of piracy attempts are ignored in setting the y-axis. The count plot, however, shows the additional uncertainty stemming from the underlying sample size.
 
-////////////////////////////////////////////////////////////////////////
-
-
 ## `r colorize("1. c)")`
 
 Ahora intenta mejorar el modelo. Considera una interacción entre el tamaño y
 edad de los piratas. Compara la capacidad predictiva de los modelos. Interpreta
 los resultados.
 
-///////////////////////////////////////////////////////////////////////
-Question: Now try to improve the model. Consider an interaction between the pirate’s size and age(immature or adult). Compare this model to the previous one, using WAIC. Interpret.
+## `r colorize("Respuesta)", "#00614E")`
 
-Answer: Let’s fit a model with ulam containing the interaction effect we were asked for:
+Utilizaremos brm para el fit del modelo
 
 ```{r}
-mH3c <- ulam(
-  alist(
-    y ~ dbinom(n, p),
-    logit(p) <- a + bP * pirateL + bV * victimL + bA * pirateA + bPA * pirateL * pirateA,
-    a ~ dnorm(0, 1.5),
-    bP ~ dnorm(0, .5),
-    bV ~ dnorm(0, .5),
-    bA ~ dnorm(0, .5),
-    bPA ~ dnorm(0, .5)
-  ),
-  data = d, chains = 4, log_lik = TRUE
-)
+fit_1c<-brm(data=aguilas,
+            family = binomial,
+            y | trials(n) ~ 1 + pirataGrande+victimaGrande+pirataAdulto+pirataGrande:pirataAdulto, #el evento si el robo fue exitoso como una binomial condicionada en el número de intentos
+            prior = c(prior(normal(0, 1.5), class = Intercept),
+                      prior(normal(0, 0.5), class = b)),
+            seed=SEED,
+            sample_prior = T, #pedimos muestras de la previa
+            file = "fits/aguilas.fit1c")
+
+summary(fit_1c, digits = 2)
+```
+
+
+```{r}
+waic_1a<-waic(fit_1a) #calcula: elpd_waic que corresponde a la log-densidad; p_waic: el número efectivo de parámetros; waic: la devianza del modelo así como suss errores estándar variando sobre todas las observaciones
+waic_1c<-waic(fit_1c) #calcula: elpd_waic que corresponde a la log-densidad; p_waic: el número efectivo de parámetros; waic: la devianza del modelo así como suss errores estándar variando sobre todas las observaciones
+
+comparativo_waic_1c<-cbind(waic_1a,waic_1c) #combina resultados para comparar
+comparativo_waic_1c
+```
+
+Y los resultados arrojan que el modelo del inciso a) y c) (con y sin interacción respectivamente) tienen un desempeño prácticamente igual ya que la devianza es prácticamente igual 59.16 en contraste con 60.68.
+
+Luego generamos un comparativo en términos de la log-densidad predictiva con el método loo_compare().
+
+```{r}
+comparativo_diff_waic_1c<-loo_compare(waic_1a,waic_1c) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
+comparativo_diff_waic_1c #imprime comparativo
+```
+
+Estos resultados si bien identifican al modelo del inciso a como el mejor pues tiene una mayor log-densidad predictiva. En realidad se aprecia una diferencia mínima en la log-densidad predictiva y el error estándar del modelo c) con respecto al del inciso a).
+
+Por último comparamos los modelos con validación cruzada mediante la función loo():
+
+```{r}
+loo_1a<-loo(fit_1a) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_1a #imprime resultados 
 ```
 
 ```{r}
-compare(mH3ulam, mH3c)
+loo_1c<-loo(fit_1c) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_1c #imprime resultados 
 ```
-
-This is quite obviously a tie. So what about the model estimates?
+En ambos casos, el diagnóstico que loo arroja es que ambos modelos son malos! REVISAR
 
 ```{r}
-plot(coeftab(mH3ulam, mH3c),
-  labels = paste(rep(rownames(coeftab(mH3ulam, mH3c)@coefs), each = 2),
-    rep(c("Base", "Interac"), nrow(coeftab(mH3ulam, mH3c)@coefs) * 2),
-    sep = "-"
-  )
-)
+comparativo_diff_loo_1c<-loo_compare(loo_1a,loo_1c) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
+comparativo_diff_loo_1c #imprime comparativo
 ```
 
-Jup, there’s not really much of a difference here. For the interaction model: the log-odds of successful piracy is just weakly bigger when the pirating individual is large and an adult. That is counter-intuitive, isn’t it? It is worth pointing out that the individual parameters for these conditions show the expected effects and the identified negative effect of their interaction may be down to the sparsity of the underlying data and we are also highly uncertain of it’s sign to begin with.
-
-///////////////////////////////////////////////////////////////////////
+SOLUCIÓN: Jup, there’s not really much of a difference here. For the interaction model: the log-odds of successful piracy is just weakly bigger when the pirating individual is large and an adult. That is counter-intuitive, isn’t it? It is worth pointing out that the individual parameters for these conditions show the expected effects and the identified negative effect of their interaction may be down to the sparsity of the underlying data and we are also highly uncertain of it’s sign to begin with.
 
 `r col_square("2. Extensiones de modelos de conteo: huracanes")`
 
