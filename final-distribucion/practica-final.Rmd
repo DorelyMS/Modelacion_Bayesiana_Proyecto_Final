@@ -23,20 +23,24 @@ text-align: justify}
 
 ```{r, echo=FALSE}
 # Función para dar color al texto que se pasa como parámetro
-colorize <- function(texto, color="#00614E") {
+colorize <- function(texto, color1="#FFFFFF", subtitle=FALSE, color2='LightSeaGreen') {
 if (knitr::is_html_output()) {
-    sprintf("<span style='color: %s;'>%s</span>", color, texto)
+    if(subtitle==FALSE)
+      sprintf("<span style='color: %s;'>%s</span>", color1, texto)
+    else
+      sprintf("<br/><br/><mark style='color: %s; background-color: %s'>%s</mark><br/><br/>", color1, color2, texto)
+      # sprintf("<span style='background-color: %s;'>%s</span>", color2, texto ) # con <span> no reslata el texto
   }
 }
 
 # Función para enmarcar texto en cuadro de color
 col_square <- function(texto, color1="#00614E", color2="#FFFFFF"){
   if(knitr::is_html_output()){
-    sprintf("<br/><br/><div style='text-align: left; border: 10px solid %s; font-weight:normal; font-size: 35px; background-color: %s; color: %s;'> %s </div><br/>",color1,color1,color2,texto)
+    sprintf("<br/><br/><div style='text-align: left; border: 10px solid %s; font-weight:normal; font-size: 35px; background-color: %s; color: %s;'> %s </div><br/><br/>",color1,color1,color2,texto)
   }
 }
-```
 
+```
 
 **Entrega:** 
 
@@ -93,8 +97,6 @@ library(cmdstanr)
 library(rstanarm)
 library(bayesplot)
 library(loo)
-library(MASS) #data eagles
-library(brms) #modelos binomiales
 
 library(patchwork)
 library(scales)
@@ -107,17 +109,29 @@ SEED <- 2021 #proponemos una semilla para reproducibilidad
 set.seed(SEED) 
 ```
 
+```{r}
+sin_lineas <- theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+sin_leyenda <- theme(legend.position = "none")
+sin_ejes <- theme(axis.ticks = element_blank(), 
+                  axis.text = element_blank())
+```
+
+
 ```{r, warning=FALSE, message=FALSE, echo=T, results='hide'}
 # Carga de las librerias adicionales utilizadas por el Equipo 8
 
 # Librería:             Funciones utilizadas:
-# rethinking            
 # summarytools          dfSummary
 # latex2exp             TeX
+# MASS                  Base de datos eagles
+# kableExtra            Formato tablas (html)
+# tidybayes             
+# rethinking            Base de datos Hurricanes
+# brms                  modelos binomiales
 
 # Creamos una lista con las librerías, luego obtenemos las que no se tienen
 # instaladas, luego instalamos las que hagan falta
-lib_proy <- c('summarytools','latex2exp', 'MASS', 'kableExtra', 'tidybayes')
+lib_proy <- c('summarytools','latex2exp', 'MASS', 'kableExtra', 'tidybayes', 'brms', 'ggplot2')
 lib_proy_faltantes <- lib_proy[!(lib_proy %in% installed.packages()[ , "Package"])]
 if(length(lib_proy_faltantes)) install.packages(lib_proy_faltantes)
 
@@ -127,10 +141,16 @@ if(length(lib_proy_faltantes)) install.packages(lib_proy_faltantes)
 
 # Cargamos todas las librerías
 lapply(c(lib_proy, 'rethinking'), require, character.only = TRUE)
+
+
+# Los modelos se guardarán en la carpeta fits, la cual debe existir donde está el este .Rmd
+# La siguiente línea checa si existe dicha carperta, y si no la crea.
+dir.create(file.path(getwd(), 'fits'), showWarnings = FALSE)
+
 ```
 
 
-`r col_square("1. Modelos de conteo: Águilas")`
+`r col_square("**1.** Modelos de conteo: Águilas")`
 
 Los datos contenidos en `MASS` (eagles) son registros intento de robo entre
 águilas blancas en el estado de Washington. Ve la ayuda para mayor detalle en el
@@ -141,7 +161,6 @@ data(eagles)
 
 #?eagles
 eagles %>%
-  head() %>%
   kbl(digits=2, format.args = list(big.mark = ",")) %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
@@ -167,7 +186,7 @@ salmón. Llamemos al águila que se está alimentando la "víctima" y al ladrón
 "pirata". Utiliza los datos disponibles para construir un GLM binomial para
 predecir los intentos exitosos de piratería.
 
-## `r colorize("1. a)")`
+## `r colorize("Inciso  **1.a**   ", subtitle=TRUE)`
 
 Considera el modelo:
 
@@ -187,23 +206,22 @@ el pirata era o no un adulto. Ajusta el modelo anterior a los datos de las
 águilas con la herramienta de tu preferencia e interpreta las estimaciones. 
 
 
-## `r colorize("Respuesta)", "#00614E")`
+## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
 
-Utilizaremos brm para el fit del modelo
-
-```{r}
-#Guardamos el dataset para transformar
+```{r, message=FALSE, cache = TRUE}
+# Guardamos el dataset en otra variable para agregar unas variables
 aguilas <- eagles
-#creamos variables indicadoras a partir de las variables ficticias
+# Creamos variables indicadoras (dummies) para las varaibles asociadas a los atributos del ave pirata y víctima,
+# con la finalidad de poderlo meter así al modelo
 aguilas$pirataGrande <- ifelse(aguilas$P == "L", 1, 0)
 aguilas$victimaGrande <- ifelse(aguilas$V == "L", 1, 0)
 aguilas$pirataAdulto <- ifelse(aguilas$A == "A", 1, 0)
 ```
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 fit_1a<-brm(data=aguilas,
             family = binomial,
-            y | trials(n) ~ 1 + pirataGrande+victimaGrande+pirataAdulto, #el evento si el robo fue exitoso como una binomial condicionada en el número de intentos
+            y | trials(n) ~ 1 + pirataGrande + victimaGrande + pirataAdulto, #el evento si el robo fue exitoso como una binomial condicionada en el número de intentos
             prior = c(prior(normal(0, 1.5), class = Intercept),
                       prior(normal(0, 0.5), class = b)),
             seed=SEED,
@@ -214,41 +232,30 @@ summary(fit_1a, digits = 2)
 ```
 
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 print(fit_1a) #imprimimos el objeto con el modelo
 ```
 
-Let’s start by getting a baseline understanding of how often a non-adult, small-bodied pirate is able to fetch a salmon from a small-bodied victim(all dummy variables are at value 0) - this is our intercept a. These are log-odds:
 
-```{r}
-mean(inv_logit_scaled(post$b_Intercept)) %>%
-  round(digits = 2)
+```{r, message=FALSE, cache = TRUE}
+# Una forma alternativa para ajustar el modelo es con la función "ulam" de la librería de "rethinking"
+
+# Definimos el modelo
+f <- alist(
+  y ~ dbinom(n, p),
+  logit(p) <- a + bP*pirataGrande + bV*victimaGrande + bA*pirataAdulto,
+  a ~ dnorm(0, 1.5),
+  bP ~ dnorm(0, .5),
+  bV ~ dnorm(0, .5),
+  bA ~ dnorm(0, .5)
+)
+
+# Ajustamos un modelo con la función "ulam" (Hamiltonian Monte Carlo with)
+fit_1a_2 <- ulam(f, data = aguilas, chains = 4, log_lik = TRUE) #fit_1a_2 object itself is in the @stanfit slot. Anything you'd do with a Stan model can be done with that slot directly
 ```
 
-We expect about 0.57% of all of our immature, small pirates to be successful when pirating on small victims.
 
-Now that we are armed with our baseline, we are ready to look at how our slope parameters affect what’s happening in our model.
-
-First, we start with the effect of pirate-body-size (bP):
-
-```{r}
-mean(inv_logit_scaled(post$b_Intercept+post$b_pirataGrande))%>%
-  round(digits = 2)
-```
-
-Large-bodied pirates win almost all of the time (87%)! We will repeat this for all slope parameters:
-
-```{r}
-mean(inv_logit_scaled(post$b_Intercept+post$b_victimaGrande))%>%
-  round(digits = 2)
-```
-
-```{r}
-mean(inv_logit_scaled(post$b_Intercept+post$b_pirataAdulto))%>%
-  round(digits = 2)
-```
-
-## `r colorize("1. b)")`
+## `r colorize("Inciso  **1.b**", subtitle=TRUE)`
 
 Luego grafica las predicciones posteriores. Para esto calcula y muestra
 tanto: 1) la predicción de la probabilidad de éxito y su intervalo de
@@ -256,69 +263,95 @@ credibilidad de 89\% para cada observación en los datos; como: 2) el número de
 éxitos y su intervalo del 89\%. ¿Qué información proporciona cada tipo de
 predicción posterior?
 
-## `r colorize("Respuesta)", "#00614E")`
+## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
 
-1. Probability of success:
+```{r, message=FALSE, cache = TRUE}
+probas_y_no_exitos <- setNames(data.frame(matrix(ncol = 6, nrow = 8)), c("p_mean", "p_li_0.055", "p_ls_0.945", "ne_mean", "ne_li_0.055", "ne_ls_0.945"))
+rownames(probas_y_no_exitos) <- paste(aguilas$P,aguilas$A,aguilas$V)
 
+simulacion_coeficientes <- as.matrix(posterior_samples(fit_1a)[,1:4]) # Fijas semilla (obtiene 4000)
+posibles_resultados <- as.matrix(cbind(rep(1,8),aguilas[1:8,c(6,7,8)]))
+simulacion_probas <- logistic(simulacion_coeficientes%*%t(posibles_resultados))
 
-```{r}
-d$psuccess <- d$y / d$n # successes divided by attempts
-p <- link(mH3ulam) # success probability with inverse link
-## Mean and Interval Calculation
-p.mean <- apply(p, 2, mean)
-p.PI <- apply(p, 2, PI)
-# plot raw proportions success for each case
-plot(d$psuccess,
-  col = rangi2,
-  ylab = "successful proportion", xlab = "case", xaxt = "n",
-  xlim = c(0.75, 8.25), pch = 16
-)
-# label cases on horizontal axis
-axis(1,
-  at = 1:8,
-  labels = c("LLA", "LSA", "LLI", "LSI", "SLA", "SSA", "SLI", "SSI") # same order as in data frame d
-)
-# display posterior predicted proportions successful
-points(1:8, p.mean)
-for (i in 1:8) lines(c(i, i), p.PI[, i])
+probas_y_no_exitos$p_mean <- apply(X = simulacion_probas, MARGIN = 2, FUN = mean)
+probas_y_no_exitos[,c("p_li_0.055","p_ls_0.945")] <- t(apply(X = simulacion_probas, MARGIN = 2, FUN = PI, prob=c(0.89)))
+
+# Para obtener la media, error e intervalos de confianza de las simulacion de la posteriro puede ejecutarse: predict(fit_1a)
+# Para obtener todas las simulaciones de la posterior (4000) (con las cuales se pueden obtener los resultados de predit(fit_1a))
+aux<-posterior_predict(fit_1a) # recordar fijar semilla (obtiene 1000)
+probas_y_no_exitos$ne_mean <- apply(X=aux, MARGIN=2, FUN=mean)
+probas_y_no_exitos[,c("ne_li_0.055","ne_ls_0.945")] <- t(apply(X = aux, MARGIN = 2, FUN = PI, prob=c(0.89)))
+
+probas_y_no_exitos
+
 ```
 
-2.Counts of successes:
 
-```{r}
-y <- sim(mH3ulam) # simulate posterior for counts of successes
-## Mean and Interval Calculation
-y.mean <- apply(y, 2, mean)
-y.PI <- apply(y, 2, PI)
-# plot raw counts success for each case
-plot(d$y,
-  col = rangi2,
-  ylab = "successful attempts", xlab = "case", xaxt = "n",
-  xlim = c(0.75, 8.25), pch = 16
-)
-# label cases on horizontal axis
-axis(1,
-  at = 1:8,
-  labels = c("LAL", "LAS", "LIL", "LIS", "SAL", "SAS", "SIL", "SIS")
-)
-# display posterior predicted successes
-points(1:8, y.mean)
-for (i in 1:8) lines(c(i, i), y.PI[, i])
+
+```{r, message=FALSE, cache = TRUE}
+ggplot(probas_y_no_exitos, aes(x = rownames(probas_y_no_exitos), y = p_mean)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymax = p_li_0.055, ymin = p_ls_0.945)) +
+  sin_lineas
 ```
 
-In conclusion, the probability plot makes the different settings of predictor variables more comparable because the number of piracy attempts are ignored in setting the y-axis. The count plot, however, shows the additional uncertainty stemming from the underlying sample size.
+```{r, message=FALSE, cache = TRUE,fig.width=12, fig.height=5}
+g1<-ggplot(probas_y_no_exitos, aes(x = paste(rownames(probas_y_no_exitos), " n=", aguilas$n), y = ne_mean)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymax = ne_li_0.055, ymin = ne_ls_0.945), axis.text.x = element_text(vjust=1)) +
+  sin_lineas +
+  theme(text = element_text(size=20), plot.title=element_text(hjust=0.5)) +
+  ggtitle("Intervalos de confianza al 89% Numero de Exitos") +
+  xlab("Posibles combinaciones de atributos aguilas pirata y victima") + ylab("No. exitos condicionado a n intentos")
+g1
+```
 
-## `r colorize("1. c)")`
+```{r, message=FALSE, cache = TRUE}
+probas_y_no_exitos <- setNames(data.frame(matrix(ncol = 6, nrow = 8)), c("p_mean", "p_li_0.055", "p_ls_0.945", "ne_mean", "ne_li_0.055", "ne_ls_0.945"))
+rownames(probas_y_no_exitos) <- paste(aguilas$P,aguilas$A,aguilas$V)
+
+
+post <- extract.samples(fit_1a_2) # Fijas semilla (obtiene 2000)
+simulacion_coeficientes <- as.matrix(cbind(post$a,post$bP, post$bV, post$bA)[1:2000,1:4])
+posibles_resultados <- as.matrix(cbind(rep(1,8),aguilas[1:8,c(6,7,8)]))
+simulacion_probas <- logistic(simulacion_coeficientes%*%t(posibles_resultados))
+
+probas_y_no_exitos$p_mean <- apply(X = simulacion_probas, MARGIN = 2, FUN = mean)
+probas_y_no_exitos[,c("p_li_0.055","p_ls_0.945")] <- t(apply(X = simulacion_probas, MARGIN = 2, FUN = PI, prob=c(0.89)))
+
+aux<-sim(fit_1a_2) # recordar fijar semilla (obtiene 1000)
+probas_y_no_exitos$ne_mean <- apply(X=aux, MARGIN=2, FUN=mean)
+probas_y_no_exitos[,c("ne_li_0.055","ne_ls_0.945")] <- t(apply(X = aux, MARGIN = 2, FUN = PI, prob=c(0.89)))
+
+
+probas_y_no_exitos
+```
+
+```{r, message=FALSE, cache = TRUE}
+ggplot(probas_y_no_exitos, aes(x = rownames(probas_y_no_exitos), y = p_mean)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymax = p_li_0.055, ymin = p_ls_0.945)) +
+  sin_lineas
+```
+
+```{r, message=FALSE, cache = TRUE}
+ggplot(probas_y_no_exitos, aes(x = paste(rownames(probas_y_no_exitos), " n=", aguilas$n), y = ne_mean)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymax = ne_li_0.055, ymin = ne_ls_0.945)) +
+  sin_lineas
+```
+
+## `r colorize("Inciso  **1.c**", subtitle=TRUE)`
 
 Ahora intenta mejorar el modelo. Considera una interacción entre el tamaño y
 edad de los piratas. Compara la capacidad predictiva de los modelos. Interpreta
 los resultados.
 
-## `r colorize("Respuesta)", "#00614E")`
+## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
 
 Utilizaremos brm para el fit del modelo
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 fit_1c<-brm(data=aguilas,
             family = binomial,
             y | trials(n) ~ 1 + pirataGrande+victimaGrande+pirataAdulto+pirataGrande:pirataAdulto, #el evento si el robo fue exitoso como una binomial condicionada en el número de intentos
@@ -327,15 +360,13 @@ fit_1c<-brm(data=aguilas,
             seed=SEED,
             sample_prior = T, #pedimos muestras de la previa
             file = "fits/aguilas.fit1c")
-
 summary(fit_1c, digits = 2)
 ```
 
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 waic_1a<-waic(fit_1a) #calcula: elpd_waic que corresponde a la log-densidad; p_waic: el número efectivo de parámetros; waic: la devianza del modelo así como suss errores estándar variando sobre todas las observaciones
 waic_1c<-waic(fit_1c) #calcula: elpd_waic que corresponde a la log-densidad; p_waic: el número efectivo de parámetros; waic: la devianza del modelo así como suss errores estándar variando sobre todas las observaciones
-
 comparativo_waic_1c<-cbind(waic_1a,waic_1c) #combina resultados para comparar
 comparativo_waic_1c
 ```
@@ -344,7 +375,7 @@ Y los resultados arrojan que el modelo del inciso a) y c) (con y sin interacció
 
 Luego generamos un comparativo en términos de la log-densidad predictiva con el método loo_compare().
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 comparativo_diff_waic_1c<-loo_compare(waic_1a,waic_1c) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
 comparativo_diff_waic_1c #imprime comparativo
 ```
@@ -353,25 +384,58 @@ Estos resultados si bien identifican al modelo del inciso a como el mejor pues t
 
 Por último comparamos los modelos con validación cruzada mediante la función loo():
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 loo_1a<-loo(fit_1a) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
 loo_1a #imprime resultados 
 ```
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 loo_1c<-loo(fit_1c) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
 loo_1c #imprime resultados 
 ```
 En ambos casos, el diagnóstico que loo arroja es que ambos modelos son malos! REVISAR
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 comparativo_diff_loo_1c<-loo_compare(loo_1a,loo_1c) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
 comparativo_diff_loo_1c #imprime comparativo
 ```
 
 SOLUCIÓN: Jup, there’s not really much of a difference here. For the interaction model: the log-odds of successful piracy is just weakly bigger when the pirating individual is large and an adult. That is counter-intuitive, isn’t it? It is worth pointing out that the individual parameters for these conditions show the expected effects and the identified negative effect of their interaction may be down to the sparsity of the underlying data and we are also highly uncertain of it’s sign to begin with.
 
-`r col_square("2. Extensiones de modelos de conteo: huracanes")`
+
+
+```{r, message=FALSE, cache = TRUE}
+fit_1c_2 <- ulam(
+  alist(
+    y ~ dbinom(n, p),
+    logit(p) <- a + bP*pirataGrande + bV*victimaGrande + bA*pirataAdulto + bPA*pirataGrande*pirataAdulto,
+    a ~ dnorm(0, 1.5),
+    bP ~ dnorm(0, .5),
+    bV ~ dnorm(0, .5),
+    bA ~ dnorm(0, .5),
+    bPA ~ dnorm(0, .5)
+  ),
+  data = aguilas, chains = 4, log_lik = TRUE
+)
+```
+
+```{r, message=FALSE, cache = TRUE}
+compare(fit_1a_2, fit_1c_2)
+```
+
+
+```{r}
+# plot(coeftab(mH3ulam, mH3c),
+#   labels = paste(rep(rownames(coeftab(mH3ulam, mH3c)@coefs), each = 2),
+#     rep(c("Base", "Interac"), nrow(coeftab(mH3ulam, mH3c)@coefs) * 2),
+#     sep = "-"
+#   )
+# )
+```
+
+
+
+`r col_square("**2.** Extensiones de modelos de conteo: huracanes")`
 
 En 2014, se publicó un artículo titulado [*"Female hurricanes are deadlier than
 male hurricanes"*](https://www.pnas.org/content/111/24/8782). Como sugiere el
@@ -414,7 +478,7 @@ Familiarízate con las columnas inspeccionando la ayuda `?Hurricanes`. En este
 problema, te concentrarás en predecir muertes usando la feminidad de cada nombre
 del huracán. 
 
-## `r colorize("2. a)")`
+## `r colorize("Inciso  **2.a**", subtitle=TRUE)`
 
 Ajustaremos e interpretaremos el modelo más simple posible, un
 modelo de Poisson de muertes utilizando la feminidad como predictor. Puede
@@ -423,7 +487,7 @@ intercepto. ¿Qué tan fuerte es la asociación entre la feminidad del nombre y 
 número de muertes? ¿Qué tormentas ajustan bien con el modelo? ¿Qué tormentas son
 las que no son tan fáciles de predecir?
 
-## `r colorize("Respuesta)", "#00614E")`
+## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
 
 1. name : Nombre del Huracán
 2. year : Año del Huracán
@@ -444,7 +508,7 @@ Fit and interpret the simplest possible model, a Poisson model of deaths using f
 
 Answer: First, let’s prepare the data:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 d <- Hurricanes # load data on object called d
 d$fem_std <- (d$femininity - mean(d$femininity)) / sd(d$femininity) # standardised femininity
 dat <- list(D = d$deaths, F = d$fem_std)
@@ -452,7 +516,7 @@ dat <- list(D = d$deaths, F = d$fem_std)
 
 Now that we have standardised data for the feminity of our hurricane names which makes priors easier to formulate, we can specify our initial model idea:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 # model formula
 f <- alist(
   D ~ dpois(lambda), # poisson outcome distribution
@@ -465,7 +529,7 @@ f <- alist(
 
 But are these priors any good? Let’s simulate them why don’t we:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 N <- 1e3
 a <- rnorm(N, 1, 1)
 bF <- rnorm(N, 0, 1)
@@ -484,14 +548,14 @@ for (i in 1:N) {
 
 I’d think that’s pretty alright. We allow for both positive and negative trends between death toll and femininity of hurricane name, but don’t have a lot of explosive trends in our priors. These strong trends are quite unintuitive. Our vast majority of trends however are very ambiguous and so I proceed with these priors and run the model:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 mH1 <- ulam(f, data = dat, chains = 4, cores = 4, log_lik = TRUE)
 precis(mH1)
 ```
 
 So according to this, there is a positive relationship between hurricane name femininity and death toll. Which hurricanes do we actually retrodict well, though? Let’s plot, this:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 # plot raw data
 plot(dat$F, dat$D,
   pch = 16, lwd = 2,
@@ -516,7 +580,7 @@ lines(pred_dat$F, deaths_sim.PI[2, ], lty = 2)
 
 Ok. There is quite a bit to unpack here. First of all, our model does not retrodict many of the hurricanes well even though it is quite certain of its predictions (grey shaded area which is hardly visible). Quite obviously, this model misses many of the hurricane death tolls to the right hand side of the above plot. This is a clear sign of over-dispersion which our model failed to account for. The weak, positive trend we are seeing here seems to be informed largely by these highly influential data points. We can assess whether and how influential some data points are with the Paraeto-K values (anything above 1 indicates an influential data point) following:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 ggplot(as.data.frame(PSISk(mH1)), aes(x = PSISk(mH1))) +
   stat_halfeye() +
   theme_bw() +
@@ -528,7 +592,7 @@ Boy! Some hurricanes really do drive our model to a big extent!
 
 //////////////////////////////////////////////////////////////////////////
 
-## `r colorize("2. b)")`
+## `r colorize("Inciso  **2.b**", subtitle=TRUE)`
 
 Los conteo casi siempre están demasiado dispersos en relación con una
 distribución Poisson. Así que ajusta un Modelo gamma-Poisson (también conocido
@@ -537,13 +601,14 @@ que el modelo con sobre-dispersión ya no muestra un resultado positivo tan
 preciso entre feminidad y muerte, con un intervalo de 89% que se superpone cero.
 ¿Puedes explicar por qué la asociación disminuyó?
 
+## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
 
 /////////////////////////////////////////////////////////////////////////
 Question: Counts are nearly always over-dispersed relative to Poisson. So fit a gamma-Poisson (aka negative-binomial) model to predict deaths using femininity. Show that the over-dispersed model no longer shows as precise a positive association between femininity and deaths, with an 89% interval that overlaps zero. Can you explain why the association diminished in strength?
 
 Answer: To start this off, I load the library and data again, so much of the exercise and my solutions can stand by itself:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 d <- Hurricanes # load data on object called d
 d$fem_std <- (d$femininity - mean(d$femininity)) / sd(d$femininity) # standardised femininity
 dat <- list(D = d$deaths, F = d$fem_std)
@@ -551,7 +616,7 @@ dat <- list(D = d$deaths, F = d$fem_std)
 
 Again, with the data prepared, we fit our model - the same model as before just with a different outcome distribution:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 mH2 <- ulam(
   alist(
     D ~ dgampois(lambda, scale),
@@ -569,7 +634,7 @@ Cool. Our previously identified positive relationship between standardised femin
 
 Let’s compare the estimates of our models side by side:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 plot(coeftab(mH1, mH2))
 ```
 
@@ -577,7 +642,7 @@ These shows quite clearly how our new model is much more uncertain of the parame
 
 So what about the predictions of this new model? I plot them the exact same way as previously:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 # plot raw data
 plot(dat$F, dat$D,
   pch = 16, lwd = 2,
@@ -603,7 +668,7 @@ What’s there left to say other than: “Look at that increased uncertainty of 
 
 For now, let’s turn to the conceptual part of this exercise: “Why has the association diminished with the new model?” The question comes down to understanding what the gamma distribution does to our model. The gamma distribution allows for a death rate to be calculated for each outcome individually rather than one overall death rate for all hurricanes. These individual rates are sampled from a common distribution which is a function of the femininity of hurricane names. As a matter of fact, we can plot this:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 post <- extract.samples(mH2)
 par(mfrow = c(1, 3))
 for (fem in -1:1) {
@@ -628,7 +693,7 @@ Since our model and gamma distributions are informed by a, bF, and the scale for
 
 Finally, let’s look at Paraeto-K values and potentially influential data again:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 ggplot(as.data.frame(PSISk(mH2)), aes(x = PSISk(mH2))) +
   stat_halfeye() +
   theme_bw() +
@@ -640,7 +705,7 @@ MUCH BETTER than before!
 
 /////////////////////////////////////////////////////////////////////////
 
-## `r colorize("2. c)")`
+## `r colorize("Inciso  **2.c**", subtitle=TRUE)`
 
 En los datos, hay dos medidas del potencial de letalidad de un huracán:
 `damage_norm` y `min_pressure`. Consulta `?Hurricanes`. Hace algo de sentido
@@ -651,12 +716,14 @@ estas interacciones. Interpreta y compara los modelos. Al interpretar las
 estimaciones, te puede ayudar a generar predicciones que contrasten los
 huracanes con nombres masculinos y femeninos. ¿Son probables los coeficientes?
 
+## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
+
 /////////////////////////////////////////////////////////////////////////
 Question: In order to infer a strong association between deaths and femininity, it’s necessary to include an interaction effect. In the data, there are two measures of a hurricane’s potential to cause death: damage_norm and min_pressure. Consult ?Hurricanes for their meanings. It makes some sense to imagine that femininity of a name matters more when the hurricane is itself deadly. This implies an interaction between femininity and either or both of damage_norm and min_pressure. Fit a series of models evaluating these interactions. Interpret and compare the models. In interpreting the estimates, it may help to generate counterfactual predictions contrasting hurricanes with masculine and feminine names. Are the effect sizes plausible?
 
 Answer: To start this off, I load the library and data again, so much of the exercise and my solutions can stand by itself:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 d <- Hurricanes # load data on object called d
 d$fem_std <- (d$femininity - mean(d$femininity)) / sd(d$femininity) # standardised femininity
 dat <- list(D = d$deaths, F = d$fem_std)
@@ -666,7 +733,7 @@ dat$S <- standardize(d$damage_norm)
 
 The data is ready and I step into my model fitting procedure. Here, I start with a basic model which builds on the previous gamma-Poisson model by adding an interaction between femininity and min_pressure:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 mH3a <- ulam(
   alist(
     D ~ dgampois(lambda, scale),
@@ -682,7 +749,7 @@ precis(mH3a)
 
 As minimum pressure gets lower, a storm grows stronger (I was confused by that myself when answering these exercises). Quite obviously, the lower the pressure in a storm, the more severe the storm, and the more people die which is reflected by the negative value in bP. bF is still estimated to be positive. This time, the interval doesn’t even overlap zero. Meanwhile, the interaction effect bFP is positive. I find it hard to interpret this so I’d rather plot some predictions against real data:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 P_seq <- seq(from = -3, to = 2, length.out = 1e2) # pressure sequence
 # 'masculine' storms
 d_pred <- data.frame(F = -1, P = P_seq)
@@ -707,7 +774,7 @@ shade(sqrt(lambda_f.PI), P_seq, col = col.alpha("red", 0.2))
 
 Our model expects masculine (grey) storms to be less deadly, on average, than feminine (red) ones. As pressure drops (toward the rightward side of the plot above), these differences become smaller and smaller. Quite evidently, some of these storms are influencing what our model predicts much more so than others:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 ggplot(as.data.frame(PSISk(mH3a)), aes(x = PSISk(mH3a))) +
   stat_halfeye() +
   theme_bw() +
@@ -716,7 +783,7 @@ ggplot(as.data.frame(PSISk(mH3a)), aes(x = PSISk(mH3a))) +
 
 Let’s turn to the second variable we may want to add damage_norm - the damage caused by each storm:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 mH3b <- ulam(
   alist(
     D ~ dgampois(lambda, scale),
@@ -732,7 +799,7 @@ precis(mH3b)
 
 That just eradicated the effect of femininity of hurricane name (bF)! The newly added interaction parameter bFS is incredibly strong and positive. Again, let’s visualise this:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 S_seq <- seq(from = -1, to = 5.5, length.out = 1e2) # damage sequence
 # 'masculine' storms
 d_pred <- data.frame(F = -1, S = S_seq)
@@ -762,7 +829,7 @@ So why is the interaction effect so strong? Probably because of those 3-4 highly
 
 ////////////////////////////////////////////////////////////////////////
 
-## `r colorize("2. d)")`
+## `r colorize("Inciso  **2.d**", subtitle=TRUE)`
 
 En el artículo original sobre huracanes, se utilizó directamente el daño por
 tormenta (`damage_norm`). Esta suposición implica que la mortalidad aumenta
@@ -775,12 +842,14 @@ modelo que usa `log(damage_norm)` a un modelo que usa `damage_norm`
 directamente. Compara la capacidad predictiva, así como sus predicciones
 implícitas. ¿Qué es lo que concluyes?
 
+## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
+
 ////////////////////////////////////////////////////////////////////////
 Question: In the original hurricanes paper, storm damage (damage_norm) was used directly. This assumption implies that mortality increases exponentially with a linear increase in storm strength, because a Poisson regression uses a log link. So it’s worth exploring an alternative hypothesis: that the logarithm of storm strength is what matters. Explore this by using the logarithm of damage_norm as a predictor. Using the best model structure from the previous problem, compare a model that uses log(damage_norm) to a model that uses damage_norm directly. Compare their DIC/WAIC values as well as their implied predictions. What do you conclude?
 
 Answer: To start this off, I load the library and data again, so much of the exercise and my solutions can stand by itself:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 d <- Hurricanes # load data on object called d
 d$fem_std <- (d$femininity - mean(d$femininity)) / sd(d$femininity) # standardised femininity
 dat <- list(D = d$deaths, F = d$fem_std)
@@ -789,7 +858,7 @@ dat$S2 <- standardize(log(d$damage_norm))
 
 Let’s fit the model as before and compare it to the previously identified best model:
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 mH4 <- ulam(
   alist(
     D ~ dgampois(lambda, scale),
@@ -805,7 +874,7 @@ compare(mH3b, mH4, func = PSIS)
 
 Model mH4 clearly outperforms the earlier (non-logarithmic) model mH3b. How do the parameter estimates look in comparison?
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 plot(coeftab(mH3b, mH4),
   labels = paste(rep(rownames(coeftab(mH3b, mH4)@coefs), each = 2),
     rep(c("Norm", "Log"), nrow(coeftab(mH3b, mH4)@coefs) * 2),
@@ -816,7 +885,7 @@ plot(coeftab(mH3b, mH4),
 
 With the log-transformed input, bFS has increased in magnitude. What do the resulting predictions look like?
 
-```{r}
+```{r, message=FALSE, cache = TRUE}
 S2_seq <- seq(from = -3, to = 1.8, length.out = 1e2)
 # 'masculine' storms
 d_pred <- data.frame(F = -1, S2 = S2_seq)
@@ -845,7 +914,7 @@ Now this model fits the data much better! Still not perfect, but much better.
 /////////////////////////////////////////////////////////////////////////
 
 
-`r col_square("3. Inferencia Causal: experimentos aleatorizados")`
+`r col_square("**3.** Inferencia Causal: experimentos aleatorizados")`
 
 Distribuciones muestrales bajo aleatorización: Utilice la covariable y el
 potencial de salida (*potential outcome*) de los datos en la tabla 18.1 del
@@ -885,7 +954,7 @@ utilizando cada una de las siguientes estimaciones:
 $\times$ sexo.
 
 
-`r col_square("4. Inferencia Causal y Modelos de Regresión: vacas")`
+`r col_square("**4.** Inferencia Causal y Modelos de Regresión: vacas")`
 
 *Aleatorización desordenada*: los datos de `vacas.txt` contiene datos de un
 experimento que se llevó a cabo con 50 vacas para estimar el efecto de un
@@ -906,20 +975,20 @@ es porque las decisiones de volver a aleatorizar no son explicados.
 Consideraremos diferentes estimaciones del efecto del complemento en la grasa
 láctea media diaria producida.
 
-## `r colorize("4. a)")`
+## `r colorize("Inciso  **4.a**", subtitle=TRUE)`
 
 Considera la regresión massimple de la grasa láctea media diaria con el nivel
 de complemento. Calcula el efecto del tratamiento estimado (coeficiente de
 regresión) y el error estándar, y explica por qué este no es un análisis
 completamente apropiado dada la aleatorización utilizada.
 
-## `r colorize("4. b)")`
+## `r colorize("Inciso  **4.b**", subtitle=TRUE)`
 
 Agrega más predictores al modelo. Explica el razonamiento para la elección de
 covariables en el modelo. Compare el efecto estimado del tratamiento con el
 resultado de (a).
 
-## `r colorize("4. c)")`
+## `r colorize("Inciso  **4.c**", subtitle=TRUE)`
 
 Repite (**`r colorize("4. b", "#00614E")`**), esta vez considerando el nivel del complemento como un predictor
 categórico con cuatro niveles. Haga una gráfica que muestre la estimación (y el
@@ -958,11 +1027,5 @@ descr(Vacas) %>%
 # visualizarse el summary cuando se genera el html)
 dfSummary(Vacas, plain.ascii = FALSE, style = "grid", graph.magnif = 0.75, valid.col = TRUE, tmp.img.dir = "/tmp")
 ```
-
-
-
-
-
-
 
 
