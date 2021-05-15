@@ -283,7 +283,6 @@ probas_y_no_exitos$ne_mean <- apply(X=aux, MARGIN=2, FUN=mean)
 probas_y_no_exitos[,c("ne_li_0.055","ne_ls_0.945")] <- t(apply(X = aux, MARGIN = 2, FUN = PI, prob=c(0.89)))
 
 probas_y_no_exitos
-
 ```
 
 
@@ -481,8 +480,8 @@ del huracán.
 ## `r colorize("Inciso  **2.a**", subtitle=TRUE)`
 
 Ajustaremos e interpretaremos el modelo más simple posible, un
-modelo de Poisson de muertes utilizando la feminidad como predictor. Puede
-utilizar quap o ulam. Compara el modelo a un modelo de muertes Poisson con sólo
+modelo de Poisson de muertes utilizando la feminidad como predictor. 
+Compara el modelo a un modelo de muertes Poisson con sólo
 intercepto. ¿Qué tan fuerte es la asociación entre la feminidad del nombre y el
 número de muertes? ¿Qué tormentas ajustan bien con el modelo? ¿Qué tormentas son
 las que no son tan fáciles de predecir?
@@ -493,10 +492,101 @@ las que no son tan fáciles de predecir?
 2. year : Año del Huracán
 3. deaths : Número de muertes
 4. category : Severidad del fenómeno
-5. min_pressure : Minimum pressure, a measure of storm strength; low is stronger
-6. damage_norm : Normalized estimate of damage in dollars
-7. female : Indicator variable for female name
-8. femininity : 1-11 scale from totally masculine (1) to totally feminine (11) for name. Average of 9 scores from 9 raters.
+5. min_pressure : Presión mínima, un indicador de fuerza de la tormenta; entre más bajo, más fuerte
+6. damage_norm : Estimación Normalizada del daño en dólares
+7. female : Variable indicadora de si el nombre del huracán tiene género mujer (1) u hombre (0)
+8. femininity : en escala de 1 a 11, 
+1-11 scale from totally masculine (1) to totally feminine (11) for name. Average of 9 scores from 9 raters.
+
+Ajustamos un modelo de Poisson de muertes a partir de la feminidad. Primero centramos la variable de feminidad alrededor de su media para poder dar una interpretación más sencilla al modelo para predecir el número de muertes:
+
+El punto de referencia, por tanto, parte del score de feminidad promedio en los huracanes que es de:
+
+```{r}
+# Guardamos el dataset en otra variable para agregar unas variables
+huracanes <- Hurricanes
+round(mean(huracanes$femininity),1)
+```
+
+```{r, message=FALSE, cache = TRUE}
+feminidad.centrada<-as.data.frame(scale(huracanes$femininity,scale = FALSE)) #centramos feminidad alrededor de su media
+colnames(feminidad.centrada)<-c("feminidad.centrada") #la nombramos feminidad.centrada
+huracanes<-cbind(huracanes,feminidad.centrada) #integramos las variables en menores.edad
+
+head(huracanes) #imprimimos las primeras observaciones
+```
+
+Ahora ya podemos proceder a ajustar el modelo:
+
+```{r}
+fit_2a<-brm(data=huracanes,
+            family=poisson,
+            deaths~ 1 + feminidad.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2a")
+
+summary(fit_2a, digits = 2)
+```
+
+De lo anterior, encontramos que la feminidad.centrada tiene un efecto positivo sobre el número de muertes cuando este valor se incrementa con respecto a la media.
+
+```{r}
+plot(conditional_effects(fit_2a, effects = "feminidad.centrada"))
+```
+
+```{r}
+prior_summary(fit_2a)
+```
+
+```{r}
+prior_summary(fit_2a1)
+```
+
+
+
+
+A continuación ajustamos el modelo de muertes Poisson con sólo intercepto para comparar.
+
+```{r}
+fit_2a1<-brm(data=huracanes,
+            family=poisson,
+            deaths~ 1,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2a1")
+
+summary(fit_2a1, digits = 2)
+```
+
+Y vemos que el coeficiente del intercepto incrementa un poco. Vamos a comparar ambos modelos a continuación:
+
+¿Qué tan fuerte es la asociación entre la feminidad del nombre y el
+número de muertes? ¿Qué tormentas ajustan bien con el modelo? ¿Qué tormentas son
+las que no son tan fáciles de predecir?
+
+```{r}
+cbind(fitted(fit_2a,re_formula = NA),fitted(fit_2a1,re_formula = NA))
+```
+
+
+```{r}
+loo_2a<-loo(fit_2a) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2a #imprime resultados 
+```
+```{r}
+plot(loo_2a)
+```
+
+```{r}
+mcmc_intervals(fit_2b)
+```
+
+```{r}
+mcmc_areas(fit_2b)
+```
+
+
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -594,7 +684,7 @@ Boy! Some hurricanes really do drive our model to a big extent!
 
 ## `r colorize("Inciso  **2.b**", subtitle=TRUE)`
 
-Los conteo casi siempre están demasiado dispersos en relación con una
+Los conteos casi siempre están demasiado dispersos en relación con una
 distribución Poisson. Así que ajusta un Modelo gamma-Poisson (también conocido
 como binomial-negativo) para predecir muertes utilizando la feminidad. Demuestra
 que el modelo con sobre-dispersión ya no muestra un resultado positivo tan
@@ -602,6 +692,45 @@ preciso entre feminidad y muerte, con un intervalo de 89% que se superpone cero.
 ¿Puedes explicar por qué la asociación disminuyó?
 
 ## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
+
+```{r}
+fit_2b<-brm(data=huracanes,
+            family=negbinomial,
+            deaths~ 1 + feminidad.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2b")
+
+summary(fit_2b, digits = 2)
+```
+
+
+```{r}
+prior_summary(fit_2b)
+```
+
+
+```{r}
+loo_2b<-loo(fit_2b) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2b #imprime resultados 
+```
+
+```{r}
+plot(loo_2b)
+```
+
+```{r}
+plot(conditional_effects(fit_2b, effects = "feminidad.centrada"))
+```
+```{r}
+plot(conditional_effects(fit_2a, effects = "feminidad.centrada"))
+```
+
+
+
+
+
+
 
 /////////////////////////////////////////////////////////////////////////
 Question: Counts are nearly always over-dispersed relative to Poisson. So fit a gamma-Poisson (aka negative-binomial) model to predict deaths using femininity. Show that the over-dispersed model no longer shows as precise a positive association between femininity and deaths, with an 89% interval that overlaps zero. Can you explain why the association diminished in strength?
