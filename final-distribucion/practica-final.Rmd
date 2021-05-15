@@ -924,14 +924,38 @@ libro *Regresion and Other Stories*. Abajo viene una versión simplificada
 ```{r, warning=FALSE, message=FALSE, cache = TRUE}
 
 omega <- tibble(female = factor(rep(rep(c(1,0), each = 2), 2)), 
-       age    = rep(c(4,5,6,7), each = 2) * 10, 
-       treatment = factor(rep(c(0,1), each = 4)), 
-       outcome = rep(c(140, 150, 155, 160), each = 2))
+       age        = rep(c(4,5,6,7), each = 2) * 10, 
+       treatment  = factor(rep(c(0,1), each = 4)), 
+       treatment_r= factor(c(0,1,0,1,0,1,0,1)),
+       pot_out_z0 = rep(c(140, 150, 160, 170), each = 2),
+       pot_out_z1 = rep(c(135, 140, 155, 160), each = 2),
+       outcome    = rep(c(140, 150, 155, 160), each = 2))
 
 omega %>%
-  head() %>%
   kbl(digits=2, format.args = list(big.mark = ","))  %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+lm(outcome ~ treatment_r, omega)
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+x<-factor(c(0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1))
+y<-c(140,140,150,150,160,160,170,170,135,135,140,140,155,155,160,160)
+lm(y ~ x)
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+efec<-function(){
+  x1<-sample(c(0,0,0,0,1,1,1,1),8)
+  x2<-(x1+1) %% 2
+  y1<-c(140,140,150,150,160,160,170,170)
+  y2<-c(135,135,140,140,155,155,160,160)
+  return((x2%*%y2 - x1%*%y1)/4)
+}
+mean(rerun(10000,efec()) %>% flatten_dbl())
 
 ```
 
