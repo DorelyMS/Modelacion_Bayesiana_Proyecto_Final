@@ -156,7 +156,7 @@ Los datos contenidos en `MASS` (eagles) son registros intento de robo entre
 águilas blancas en el estado de Washington. Ve la ayuda para mayor detalle en el
 conjunto de datos:
 
-```{r, warning=FALSE, message=FALSE, cache = TRUE, results='markup'}
+```{r, warning=FALSE, message=FALSE, cache = TRUE, results='markup', eval=FALSE}
 data(eagles)
 
 #?eagles
@@ -165,7 +165,7 @@ eagles %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
-```{r, warning=FALSE, message=FALSE, cache = TRUE}
+```{r, warning=FALSE, message=FALSE, cache = TRUE, eval=FALSE}
 descr(eagles) %>%
   kbl(digits=2, format.args = list(big.mark = ",")) %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
@@ -419,7 +419,7 @@ fit_1c_2 <- ulam(
 ```
 
 ```{r, message=FALSE, cache = TRUE}
-compare(fit_1a_2, fit_1c_2)
+#compare(fit_1a_2, fit_1c_2)
 ```
 
 
@@ -864,11 +864,13 @@ huracanes con nombres masculinos y femeninos. ¿Son probables los coeficientes?
 ## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
 
 ```{r}
-dano.centrada<-as.data.frame(scale(huracanes$damage_norm,scale = FALSE)) #centramos feminidad alrededor de su media
-colnames(dano.centrada)<-c("dano.centrada") #la nombramos feminidad.centrada
-presion.centrada<-as.data.frame(scale(huracanes$min_pressure,scale=FALSE)) #centramos feminidad alrededor de su media
-colnames(presion.centrada)<-c("presion.centrada") #la nombramos feminidad.centrada
-huracanes<-cbind(huracanes,dano.centrada,presion.centrada) #integramos las variables en menores.edad
+feminidad.std<-as.data.frame(scale(huracanes$femininity,scale = TRUE)) #centramos feminidad alrededor de su media
+colnames(feminidad.std)<-c("feminidad.std") #la nombramos feminidad.centrada
+dano.std<-as.data.frame(scale(huracanes$damage_norm,scale = TRUE)) #centramos feminidad alrededor de su media
+colnames(dano.std)<-c("dano.std") #la nombramos feminidad.centrada
+presion.std<-as.data.frame(scale(huracanes$min_pressure,scale=TRUE)) #centramos feminidad alrededor de su media
+colnames(presion.std)<-c("presion.std") #la nombramos feminidad.centrada
+huracanes<-cbind(huracanes,feminidad.std,dano.std,presion.std) #integramos las variables en menores.edad
 
 head(huracanes) #imprimimos las primeras observaciones
 ```
@@ -876,26 +878,174 @@ head(huracanes) #imprimimos las primeras observaciones
 
 
 ```{r}
-fit_2c_fd<-brm(data=huracanes,
-            family=poisson,
-             deaths~ 1 + dano.centrada,
+fit_2c_fd_negbin<-brm(data=huracanes,
+            family=negbinomial,
+             deaths~ 1 + feminidad.std +dano.std+feminidad.std*dano.std,
             # +feminidad.centrada*dano.centrada,
             seed=SEED,
             sample_prior = T,
-            file="fits/huracanes.fit2c_fd")
+            file="fits/huracanes.fit2c_fd_negbin")
 
-summary(fit_2c_fd, digits = 2)
+summary(fit_2c_fd_negbin, digits = 2)
 ```
 
 ```{r}
-fit_2c_fd<-brm(data=huracanes,
+loo_2c_fd_negbin<-loo(fit_2c_fd_negbin) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2c_fd_negbin  #imprime resultados
+```
+
+```{r}
+plot(fit_2c_fd_negbin,pars=c("feminidad.std","dano.std"))
+```
+
+
+
+```{r}
+fit_2c_fd_poi<-brm(data=huracanes,
             family=poisson,
-            deaths~ 1 + feminidad.centrada+dano.centrada+feminidad.centrada*dano.centrada,
+             deaths~ 1 + feminidad.std +dano.std+feminidad.std*dano.std,
+            # +feminidad.centrada*dano.centrada,
             seed=SEED,
             sample_prior = T,
-            file="fits/huracanes.fit2c_fd")
+            file="fits/huracanes.fit2c_fd_poi")
 
-summary(fit_2c_fd, digits = 2)
+summary(fit_2c_fd_poi, digits = 2)
+```
+
+
+```{r}
+loo_2c_fd_poi<-loo(fit_2c_fd_poi) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2c_fd_poi  #imprime resultados
+```
+
+```{r}
+fit_2c_fp_negbin<-brm(data=huracanes,
+            family=negbinomial,
+             deaths~ 1 + feminidad.std +presion.std+feminidad.std*presion.std,
+            # +feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2c_fp_negbin")
+
+summary(fit_2c_fp_negbin, digits = 2)
+```
+
+```{r}
+loo_2c_fp_negbin<-loo(fit_2c_fp_negbin) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2c_fp_negbin  #imprime resultados
+```
+
+
+```{r}
+fit_2c_fp_poi<-brm(data=huracanes,
+            family=poisson,
+             deaths~ 1 + feminidad.std +presion.std+feminidad.std*presion.std,
+            # +feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2c_fp_poi")
+
+summary(fit_2c_fp_poi, digits = 2)
+```
+
+```{r}
+loo_2c_fp_poi<-loo(fit_2c_fp_poi) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2c_fp_poi  #imprime resultados
+```
+
+```{r}
+fit_2c_fpd_negbin<-brm(data=huracanes,
+            family=negbinomial,
+             deaths~ 1 + feminidad.std+presion.std+dano.std+feminidad.std*presion.std+feminidad.std*dano.std,
+            # +feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2c_fpd_negbin")
+
+summary(fit_2c_fpd_negbin, digits = 2)
+```
+
+
+```{r}
+loo_2c_fpd_negbin<-loo(fit_2c_fpd_negbin) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2c_fpd_negbin  #imprime resultados
+```
+
+```{r}
+fit_2c_fpd_poi<-brm(data=huracanes,
+            family=poisson,
+             deaths~ 1 + feminidad.std+presion.std+dano.std+feminidad.std*presion.std+feminidad.std*dano.std,
+            # +feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2c_fpd_poi")
+
+summary(fit_2c_fpd_poi, digits = 2)
+```
+
+```{r}
+loo_2c_fpd_poi<-loo(fit_2c_fpd_poi) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2c_fpd_poi  #imprime resultados
+```
+
+
+El diagnóstico de todos los modelos que loo arrojó es que son buenos: "All Pareto k estimates are good (k < 0.5)." sólo con excepción del que utiliza un polinomio grado 6 en términos la edad.centrada como predictores pues en este caso indica ok: "All Pareto k estimates are ok (k < 0.7).". A continuación mostramos un resumen de los estadísticos de todos los modelos con loo:
+
+```{r}
+comparativo_loo_2c<-cbind(loo_2c_fd_negbin,loo_2c_fd_poi,loo_2c_fp_negbin,loo_2c_fp_poi,loo_2c_fpd_negbin,loo_2c_fpd_poi) #guarda comparativo
+comparativo_loo_2c #imprime comparativo de modelos
+```
+
+En términos de la devianza (looic) los modelos binomiales negativos tienen la mejor capacidad predictiva ya que tienen una menor devianza respecto a los modelos Poisson, cuya devianza está en términos de millares. El mejor modelo, fue el que incluye las 2 interacciones con la feminidad.std, que son feminidad.std:dano.std y feminidad.std:presion.std
+
+Además, notamos que el error estándar de looic es de 33 aproximadamente en estos mismos modelos, por lo que no podríamos dar una conclusión definitiva sobre cuál de estos 3 predictores es el mejor con este criterio.
+
+Para complementar el análisis, procederemos a obtener un comparativo en términos de la log-densidad predictiva con el método loo_compare().
+
+```{r}
+comparativo_diff_loo_2c<-loo_compare(loo_2c_fd_negbin,loo_2c_fd_poi,loo_2c_fp_negbin,loo_2c_fp_poi,loo_2c_fpd_negbin,loo_2c_fpd_poi) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
+comparativo_diff_loo_2c  #imprime comparativo de modelos
+```
+
+De lo anterior, concluimos que la capacidad predictiva de los modelos con polinomios de mayor grado (4-6) no tiene una diferencia lo suficientemente fuerte y por tanto, escogemos como el mejor modelo como fit_2c_fd_negbin que incorpora como predictores a la feminidad.std y dano.std por el principio de parsimonia.
+
+
+```{r}
+dano_seq <- seq(from = -1, to = 5.5, length.out = 1e2) # Secuencia para daños
+# 'masculine' storms
+dano_pred_f <- data.frame(female = -1, D = dano_seq)
+head(dano_pred_f)
+```
+
+```{r}
+#femenino
+dano_pred_m <- data.frame(female = 1, D = dano_seq)
+head(dano_pred_m)
+```
+
+```{r}
+lambda_f <- link(fit_2c_fd_negbin, data = dano_pred_f)
+```
+
+```{r}
+lambda_m <- link(fit_2c_fd_negbin, data = dano_pred_m)
+```
+
+```{r}
+lambda_m.mu <- apply(lambda_m, 2, mean)
+lambda_m.PI <- apply(lambda_m, 2, PI)
+```
+
+```{r}
+lambda_f.mu <- apply(lambda_f, 2, mean)
+lambda_f.PI <- apply(lambda_f, 2, PI)
+```
+
+
+
+
+```{r}
+pred(fit_2c_fpd_negbin)
 ```
 
 
