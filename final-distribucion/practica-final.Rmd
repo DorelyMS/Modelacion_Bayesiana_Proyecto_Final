@@ -539,10 +539,6 @@ plot(conditional_effects(fit_2a, effects = "feminidad.centrada"))
 prior_summary(fit_2a)
 ```
 
-```{r}
-prior_summary(fit_2a1)
-```
-
 
 
 
@@ -557,6 +553,11 @@ fit_2a1<-brm(data=huracanes,
             file="fits/huracanes.fit2a1")
 
 summary(fit_2a1, digits = 2)
+```
+
+
+```{r}
+prior_summary(fit_2a1)
 ```
 
 Y vemos que el coeficiente del intercepto incrementa un poco. Vamos a comparar ambos modelos a continuación:
@@ -578,13 +579,7 @@ loo_2a #imprime resultados
 plot(loo_2a)
 ```
 
-```{r}
-mcmc_intervals(fit_2b)
-```
 
-```{r}
-mcmc_areas(fit_2b)
-```
 
 
 
@@ -716,6 +711,11 @@ loo_2b #imprime resultados
 ```
 
 ```{r}
+plot(loo_2a)
+```
+
+
+```{r}
 plot(loo_2b)
 ```
 
@@ -728,9 +728,25 @@ plot(conditional_effects(fit_2a, effects = "feminidad.centrada"))
 
 
 
+```{r}
+plot(fit_2b)
+```
 
+```{r}
+plot(fit_2a)
+```
 
+```{r, message=FALSE, cache = TRUE}
+comparativo_diff_loo_2b<-loo_compare(loo_2a,loo_2b) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
+comparativo_diff_loo_2b #imprime comparativo
+```
 
+```{r}
+comparativo_loo_2b<-cbind(loo_2a,loo_2b) #guarda comparativo
+comparativo_loo_2b
+```
+
+El Modelo gamma-Poisson (también conocido como binomial-negativo). Utiliza una distribución gamma que permite calcular una tasa de mortalidad para cada resultado individual de la feminidad.centrada en lugar de una tasa de mortalidad general como la Poisson. Al tener la gamma dos parámetros, implica que tiene información sobre la variabilidad de los datos, mientras que la Poisson tiene información de la media y la varianza en un solo parámetro. Esto relaja la distribución Gamma y nos da una información posterior más amplia, pero le implica a mis datos tener que dar más información sobre la media y la varianza. Al tener pocos datos la asociación se complica utilizando la binomial negativa.
 
 /////////////////////////////////////////////////////////////////////////
 Question: Counts are nearly always over-dispersed relative to Poisson. So fit a gamma-Poisson (aka negative-binomial) model to predict deaths using femininity. Show that the over-dispersed model no longer shows as precise a positive association between femininity and deaths, with an 89% interval that overlaps zero. Can you explain why the association diminished in strength?
@@ -839,13 +855,49 @@ MUCH BETTER than before!
 En los datos, hay dos medidas del potencial de letalidad de un huracán:
 `damage_norm` y `min_pressure`. Consulta `?Hurricanes`. Hace algo de sentido
 imaginar que la feminidad de un nombre importa más cuando el huracán es en sí
-mismo mortal. Esto implica una interacción entre la feminidad y posiblemente una
+mismo es mortal. Esto implica una interacción entre la feminidad y posiblemente una
 o las dos `damage_norm` y `min_pressure`. Ajusta una serie de modelos evaluando
 estas interacciones. Interpreta y compara los modelos. Al interpretar las
 estimaciones, te puede ayudar a generar predicciones que contrasten los
 huracanes con nombres masculinos y femeninos. ¿Son probables los coeficientes?
 
 ## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
+
+```{r}
+dano.centrada<-as.data.frame(scale(huracanes$damage_norm,scale = FALSE)) #centramos feminidad alrededor de su media
+colnames(dano.centrada)<-c("dano.centrada") #la nombramos feminidad.centrada
+presion.centrada<-as.data.frame(scale(huracanes$min_pressure,scale=FALSE)) #centramos feminidad alrededor de su media
+colnames(presion.centrada)<-c("presion.centrada") #la nombramos feminidad.centrada
+huracanes<-cbind(huracanes,dano.centrada,presion.centrada) #integramos las variables en menores.edad
+
+head(huracanes) #imprimimos las primeras observaciones
+```
+
+
+
+```{r}
+fit_2c_fd<-brm(data=huracanes,
+            family=poisson,
+             deaths~ 1 + dano.centrada,
+            # +feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2c_fd")
+
+summary(fit_2c_fd, digits = 2)
+```
+
+```{r}
+fit_2c_fd<-brm(data=huracanes,
+            family=poisson,
+            deaths~ 1 + feminidad.centrada+dano.centrada+feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2c_fd")
+
+summary(fit_2c_fd, digits = 2)
+```
+
 
 /////////////////////////////////////////////////////////////////////////
 Question: In order to infer a strong association between deaths and femininity, it’s necessary to include an interaction effect. In the data, there are two measures of a hurricane’s potential to cause death: damage_norm and min_pressure. Consult ?Hurricanes for their meanings. It makes some sense to imagine that femininity of a name matters more when the hurricane is itself deadly. This implies an interaction between femininity and either or both of damage_norm and min_pressure. Fit a series of models evaluating these interactions. Interpret and compare the models. In interpreting the estimates, it may help to generate counterfactual predictions contrasting hurricanes with masculine and feminine names. Are the effect sizes plausible?
