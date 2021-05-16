@@ -97,7 +97,6 @@ library(cmdstanr)
 library(rstanarm)
 library(bayesplot)
 library(loo)
-
 library(patchwork)
 library(scales)
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning=FALSE, 
@@ -146,7 +145,6 @@ lapply(c(lib_proy, 'rethinking'), require, character.only = TRUE)
 # Los modelos se guardarán en la carpeta fits, la cual debe existir donde está el este .Rmd
 # La siguiente línea checa si existe dicha carperta, y si no la crea.
 dir.create(file.path(getwd(), 'fits'), showWarnings = FALSE)
-
 ```
 
 
@@ -287,6 +285,7 @@ probas_y_no_exitos
 
 
 
+
 ```{r, message=FALSE, cache = TRUE}
 ggplot(probas_y_no_exitos, aes(x = rownames(probas_y_no_exitos), y = p_mean)) +
   geom_point(size = 4) +
@@ -325,6 +324,7 @@ probas_y_no_exitos[,c("ne_li_0.055","ne_ls_0.945")] <- t(apply(X = aux, MARGIN =
 
 probas_y_no_exitos
 ```
+
 
 ```{r, message=FALSE, cache = TRUE}
 ggplot(probas_y_no_exitos, aes(x = rownames(probas_y_no_exitos), y = p_mean)) +
@@ -495,7 +495,7 @@ las que no son tan fáciles de predecir?
 5. min_pressure : Presión mínima, un indicador de fuerza de la tormenta; entre más bajo, más fuerte
 6. damage_norm : Estimación Normalizada del daño en dólares
 7. female : Variable indicadora de si el nombre del huracán tiene género mujer (1) u hombre (0)
-8. femininity : en escala de 1 a 11, 
+8. femininity : feminidad sobre el nombre del huracán en escala de 1 a 11, de 
 1-11 scale from totally masculine (1) to totally feminine (11) for name. Average of 9 scores from 9 raters.
 
 Ajustamos un modelo de Poisson de muertes a partir de la feminidad. Primero centramos la variable de feminidad alrededor de su media para poder dar una interpretación más sencilla al modelo para predecir el número de muertes:
@@ -532,14 +532,12 @@ summary(fit_2a, digits = 2)
 De lo anterior, encontramos que la feminidad.centrada tiene un efecto positivo sobre el número de muertes cuando este valor se incrementa con respecto a la media.
 
 ```{r}
-plot(conditional_effects(fit_2a, effects = "feminidad.centrada"))
-```
-
-```{r}
 prior_summary(fit_2a)
 ```
 
-
+```{r}
+plot(conditional_effects(fit_2a, effects = "feminidad.centrada"))
+```
 
 
 A continuación ajustamos el modelo de muertes Poisson con sólo intercepto para comparar.
@@ -562,25 +560,87 @@ prior_summary(fit_2a1)
 
 Y vemos que el coeficiente del intercepto incrementa un poco. Vamos a comparar ambos modelos a continuación:
 
-¿Qué tan fuerte es la asociación entre la feminidad del nombre y el
-número de muertes? ¿Qué tormentas ajustan bien con el modelo? ¿Qué tormentas son
-las que no son tan fáciles de predecir?
-
-```{r}
-cbind(fitted(fit_2a,re_formula = NA),fitted(fit_2a1,re_formula = NA))
-```
-
 
 ```{r}
 loo_2a<-loo(fit_2a) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
 loo_2a #imprime resultados 
 ```
+
 ```{r}
 plot(loo_2a)
 ```
 
+```{r}
+loo_2a1<-loo(fit_2a1) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2a1 #imprime resultados 
+```
+
+```{r}
+plot(loo_2a1)
+```
 
 
+
+¿Qué tan fuerte es la asociación entre la feminidad del nombre y el
+número de muertes?
+
+```{r}
+tabla_2a_fm<-as.data.frame(cbind(huracanes,predict(fit_2a)[,1])) #,re_formula = NA
+tabla_2a_fm<-tabla_2a_fm[,-c(2,4:7)]
+colnames(tabla_2a_fm) <- c("nombre","muertes","feminidad","feminidad.centrada","prediccion.muertes")
+head(tabla_2a_fm)
+```
+
+
+```{r}
+#Gráfico Dispersión muertes vs predictor: peso.centrado
+g_2a_feminidad_muertes<-tabla_2a_fm %>% 
+  ggplot(aes(x=feminidad,y=muertes)) +
+  ylim(0,260)+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(title = "Feminidad vs muertes observadas")
+
+#Gráfico Dispersión altura vs predictor 1: peso.centrado
+g_2a_feminidad.centrada_prediccion.muertes<-tabla_2a_fm %>% 
+  ggplot(aes(x=feminidad.centrada,y=prediccion.muertes)) +
+  ylim(0,260)+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(title = "Fem.Centrada vs predicción muertes")
+
+g_2a_feminidad_muertes+g_2a_feminidad.centrada_prediccion.muertes
+```
+
+
+```{r}
+tabla_2a_fm<-tabla_2a_fm %>% 
+  mutate(error.absoluto=abs(muertes-prediccion.muertes))
+head(tabla_2a_fm)
+```
+
+```{r}
+tabla_2a_fm<-tabla_2a_fm %>% 
+  mutate(diagnostico.psis=loo_2a$pointwise[,5])
+head(tabla_2a_fm)
+```
+
+
+¿Qué tormentas ajustan bien con el modelo? 
+
+```{r}
+tabla_2a_fm %>%
+  arrange(error.absoluto) %>%
+  head(5)
+```
+
+¿Qué tormentas son las que no son tan fáciles de predecir?
+
+```{r}
+tabla_2a_fm %>%
+  arrange(desc(error.absoluto)) %>%
+  head(5)
+```
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -670,7 +730,6 @@ ggplot(as.data.frame(PSISk(mH1)), aes(x = PSISk(mH1))) +
   stat_halfeye() +
   theme_bw() +
   labs(title = "Paraeto-K values", subtitle = "Values > 1 indicate highly influential data")
-
 ```
 
 Boy! Some hurricanes really do drive our model to a big extent!
@@ -722,6 +781,7 @@ plot(loo_2b)
 ```{r}
 plot(conditional_effects(fit_2b, effects = "feminidad.centrada"))
 ```
+
 ```{r}
 plot(conditional_effects(fit_2a, effects = "feminidad.centrada"))
 ```
