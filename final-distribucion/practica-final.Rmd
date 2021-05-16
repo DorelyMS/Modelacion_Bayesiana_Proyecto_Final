@@ -579,6 +579,19 @@ loo_2a1 #imprime resultados
 plot(loo_2a1)
 ```
 
+Compara el modelo a un modelo de muertes Poisson con sólo intercepto.
+
+
+```{r}
+comparativo_loo_2a<-cbind(loo_2a,loo_2a1) #guarda comparativo
+comparativo_loo_2a
+```
+
+
+```{r, message=FALSE}
+comparativo_diff_loo_2a<-loo_compare(loo_2a,loo_2a1) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
+comparativo_diff_loo_2a #imprime comparativo
+```
 
 
 ¿Qué tan fuerte es la asociación entre la feminidad del nombre y el
