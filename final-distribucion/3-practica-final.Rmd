@@ -1,0 +1,625 @@
+---
+title:
+  - "![](./Imagen_logo_ITAM.jpg){width=10in}"
+  - <center><h1><div class="green"> **PRÁCTICA FINAL METODOS BAYESIANOS** </div></h1><center>
+  - <center><h1><div class="green"> PRIMAVERA 2021 </div></h1><center>
+  - "![](./Imagen_espacio.jpg){width=10in}"
+author:
+  - <center><h1><div class="darkgreen"> **EQUIPO 08** </div></h1><center>
+  - <center> <font size="5"> Dorely Morales Santiago  178095 </font> <center>
+  - <center> <font size="5"> Rodrigo Suárez Segovia   191351 </font> <center>
+  - <center> <font size="5"> Zarazúa Cruz Guillermo   159396 </font> <center>
+date:
+  - "![](./Imagen_espacio.jpg){width=10in}"
+output:
+  html_document: default
+---
+
+<!-- Justificamos el texto -->
+<style>
+body {
+text-align: justify}
+</style>
+
+```{r, echo=FALSE}
+# Función para dar color al texto que se pasa como parámetro
+colorize <- function(texto, color1="#FFFFFF", subtitle=FALSE, color2='LightSeaGreen') {
+if (knitr::is_html_output()) {
+    if(subtitle==FALSE)
+      sprintf("<span style='color: %s;'>%s</span>", color1, texto)
+    else
+      sprintf("<br/><br/><mark style='color: %s; background-color: %s'>%s</mark><br/><br/>", color1, color2, texto)
+      # sprintf("<span style='background-color: %s;'>%s</span>", color2, texto ) # con <span> no reslata el texto
+  }
+}
+
+# Función para enmarcar texto en cuadro de color
+col_square <- function(texto, color1="#00614E", color2="#FFFFFF"){
+  if(knitr::is_html_output()){
+    sprintf("<br/><br/><div style='text-align: left; border: 10px solid %s; font-weight:normal; font-size: 35px; background-color: %s; color: %s;'> %s </div><br/><br/>",color1,color1,color2,texto)
+  }
+}
+
+# Función para imprimir dataframes con formato dado
+print_df <- function(df){
+  df %>%
+  kbl(digits=2, format.args = list(big.mark = ","), align = "c")  %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+}
+```
+
+**Entrega:** 
+
+Enviar por correo electrónico una carpeta comprimida
+(`equipo-xx.zip`) que incluya datos y codigo de solución a mas tardar el 18 de
+Mayo antes de las 11:59pm (medianoche). El asunto deberá ser `[MB - 2021]
+Final Equipo XX`, donde  reemplazarás `XX` con el codigo de tu equipo. No se
+aceptarán entregas extemporáneas. Será mejor entregar un examen resuelto
+parcialmente, que no entregar nada. 
+
+**Instrucciones:**
+  
+* Tus respuestas deben ser claras y debes explicar los resultados, incluye
+también tus procedimientos/código de manera ordenada, y el código comentado.
+
+* Se evaluará la presentación de resultados (calidad de las gráficas, tablas,
+...).
+
+* Las sesión del Martes 11 de Mayo será destinada a responder dudas del
+examen. Para esto se reservará una media hora para dudas (dependerá de la agenda
+cuál será el momento mas oportuno para abrir el espacio). 
+
+* Se podrá usar el foro de discusión para realizar preguntas y afinar detalles 
+que no queden claros. 
+
+* No pueden compartir soluciones entre diferentes equipos.
+
+* Al entregar este examen afirmas que el trabajo se realizó sólo con tu
+compañeros de equipo. El material que utilizaste para apoyarte consistió de las
+notas en clase (pdfs en Canvas), el codigo fuente de las notas en el repositorio
+de Github.
+
+* Al entregar estás dando tu consentimiento para que bajo sospecha y suficiente
+evidencia de copia se anule tu evaluación.
+
+* La carpeta comprimida deberá incluir la resolución del examen también en
+formato `.html`. La evaluación será completamente sobre el `html` y el código
+fuente será utilizado para verificar detalles adicionales. Si el `html` no
+incluye alguna sección de la evaluación se tomará dicha sección como **no
+entregado**.
+
+**Ponderación:**
+
+El examen está compuesto por cuatro apartados cuyos pesos son los siguientes:  
+- Águilas    (15\%),  
+- Huracanes  (45\%),  
+- Omega-3    (15\%),  
+- Vacas      (25\%).  
+
+```{r setup, include=FALSE}
+library(tidymodels)
+library(tidyverse)
+library(cmdstanr)
+library(rstanarm)
+library(bayesplot)
+library(loo)
+
+library(patchwork)
+library(scales)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning=FALSE, 
+                      fig.align = 'center', fig.width = 5, fig.height=3, cache = TRUE)
+comma <- function(x) format(x, digits = 2, big.mark = ",")
+theme_set(theme_linedraw())
+
+SEED <- 2021 #proponemos una semilla para reproducibilidad
+set.seed(SEED) 
+```
+
+
+```{r, include=FALSE}
+sin_lineas <- theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+sin_leyenda <- theme(legend.position = "none")
+sin_ejes <- theme(axis.ticks = element_blank(), 
+                  axis.text = element_blank())
+```
+
+
+```{r, warning=FALSE, message=FALSE, echo=T, results='hide'}
+# Carga de las librerias adicionales utilizadas por el Equipo 8
+
+# Librería:             Funciones utilizadas:
+# summarytools          dfSummary
+# latex2exp             TeX
+# MASS                  Base de datos eagles
+# kableExtra            Formato tablas (html)
+# tidybayes             
+# rethinking            Base de datos Hurricanes
+# brms                  modelos binomiales
+
+# Creamos una lista con las librerías, luego obtenemos las que no se tienen
+# instaladas, luego instalamos las que hagan falta
+lib_proy <- c('summarytools','latex2exp', 'MASS', 'kableExtra', 'tidybayes', 'brms', 'ggplot2', 'dplyr', 'fastDummies')
+lib_proy_faltantes <- lib_proy[!(lib_proy %in% installed.packages()[ , "Package"])]
+if(length(lib_proy_faltantes)) install.packages(lib_proy_faltantes)
+
+# Para instalar la librería "rethinking" usar los siguientes comandos:
+# install.packages(c("coda","mvtnorm","devtools","loo","dagitty")) #CHECAR SI ESTE ES NECESARIO
+# devtools::install_github("rmcelreath/rethinking")
+
+# Cargamos todas las librerías
+lapply(c(lib_proy, 'rethinking'), require, character.only = TRUE)
+
+
+# Los modelos se guardarán en la carpeta fits, la cual debe existir donde está el este .Rmd
+# La siguiente línea checa si existe dicha carperta, y si no la crea.
+dir.create(file.path(getwd(), 'fits'), showWarnings = FALSE)
+
+```
+
+
+
+`r col_square("**3.** Inferencia Causal: experimentos aleatorizados")`
+
+Distribuciones muestrales bajo aleatorización: Utilice la covariable y el
+potencial de salida (*potential outcome*) de los datos en la tabla 18.1 del
+libro *Regresion and Other Stories*. Abajo viene una versión simplificada
+(aunque hacen falta un par más, incorpóralas):
+
+La siguiente tabla fue tomada a partir de las tablas 18.1 y 18.2 del capítulo 18
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+omega <- tibble(female  = factor(rep(rep(c(1,0), each = 2), 2)), 
+       age              = rep(c(4,5,6,7), each = 2) * 10, 
+       observed_treat   = factor(rep(c(0,1), each = 4)), 
+       # treatment_r= factor(c(0,1,0,1,0,1,0,1)),
+       observed_out     = rep(c(140, 150, 155, 160), each = 2),
+       pot_out_z0 = rep(c(140, 150, 160, 170), each = 2), # Potencial outcome with no treatment
+       pot_out_z1 = rep(c(135, 140, 155, 160), each = 2)  # Potencial outcome with treatment
+       )
+
+print_df(omega)
+```
+
+Como punto de partida para considerar distribuciones de aleatorización de cuatro
+diseños diferentes mediante la creación de simulaciones en `R`.
+
+Comenta sobre el sesgo relativo es decir, suponiendo omnisciencia, qué tanto varía con respecto al verdadero valor $y^{0}_{i}-y^{1}_{i}$ y la eficiencia para cada uno de los siguientes diseños:
+
+* Diseño completamente aleatorizado,
+* Diseño aleatorio usando bloques por los cuatro participantes mayores frente a los cuatro más jóvenes,
+* Diseño de pares combinados (agrupando por los gemelos son los que comparten la primer letra de su nombre),
+
+Utilizando cada una de las siguientes estimaciones:
+
+* Diferencia de medias,
+* Regresión del indicador de tratamiento y la edad,
+* Regresión del indicador de tratamiento, edad y sexo (los datos indican 1 si es mujer, 0 si es hombre),
+* Regresión del indicador de tratamiento, edad, sexo e interacción tratamiento $\times$ sexo.
+
+Como se mencionó anterioremente, la tabla de arriba se complementó con los "potential outcomes" reportados en la figura 18.2 de "Regresion and Other Stories" (pag 342), donde pot_out_z0 corresponde al resultado observado si no se hubiera tomado el tratamiento y pot_out_z1 al resultado observado si 
+se hubiera tomado el tratamiento.
+
+Se piden 4 muestras de los 3 diferentes diseños, siendo los diseños:
+- Completamente aleatorizado: Se distribuyen 4 tratamientos entre los 8 miembros del grupo completamente al azar (1 bloque conformado por todos)
+- Aleatorio usando 2 bloques (o grupos) de edades 40-50 años y 60-70 años: Se distribuyen 2 tratamientos al azar en cada grupo
+- Pares combinados: Se forman 4 grupos, cada uno conformado por personas de la misma edad, repartiendo 1 tratamiento por grupo
+
+Esta relación de bloques con su diseño podemos verla en la siguiente tabla:
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+omega$b_d1 <- c(1,1,1,1,1,1,1,1) # bloques diseño 1: complementamente aleatorizado
+omega$b_d2 <- c(1,1,1,1,2,2,2,2) # bloques diseño 2: aleatoria usando 2 bloques (40-50 años y 60-70 años) Jóvenes y Mayores
+omega$b_d3 <- c(1,1,2,2,3,3,4,4) # bloques diseño 3: pares combinados 
+
+omega<-dplyr::select(omega,-c(observed_treat, observed_out))
+print_df(omega)
+```
+
+
+A continuación se obtienen 4 muestras o reparticiones aleatorias de tratamientos acorde a los 3 diseños. Para fines ilustrativos, mostramos la primer muestra de cada diseño.
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+# Función para obtener muestras aleatorias del diseño por bloques
+rand_assig_by_desig <- function(blocks,...){
+  # blocks es un vector cuyos elementos representan la asignacion de
+  # bloques, si blocks=(1,2,1,3,2), se entiende que el 1er y 3er elemento
+  # forman parte del bloque 1, el 2do y 5to elemento del 2do bloque, etc.
+  
+  # A cada bloque se le asigna tantos tratamientos como se señalen en los
+  # parámetros dinámicos list(...), el 1er elemento de esta lista será
+  # el no. de tratamientos asignados al bloque 1, el 2do elemento de
+  # list(...) será el no. de tratamientos asignados al bloque 2, etc
+  
+  asig<-NULL
+  tbb<-as.numeric(unlist(list(...))) # tbb: treatments by blocks
+  bs<-table(blocks) # bs: blocks size
+  for(i in 1:dim(bs)){
+    samp<-c(rep(1,tbb[i]),rep(0,bs[i]-tbb[i]))
+    rand_samp<-sample(samp,bs[i])
+    asig<-c(asig,rand_samp)
+  }
+  # Se regresan la asignación de tratamientos en el orden
+  # en que venían los elementos/registros originales
+  return(asig[order(blocks)])
+}
+
+# Función que crea un dataframe con las muestras aleatorias del diseño por bloques
+# n: número de muestras (en el ejercicio piden 4)
+# d: diseño del que se quiere sacar las muestras aleatorias
+sims_design <- function(df,n,d,...){
+  aux <- mutate(dplyr::select(df, -("b_d1":"b_d3")), design=rep(d,8), blocks=df[[paste0("b_d",d)]])
+  sim_desig_list <- rerun(n, do.call(rand_assig_by_desig, list(aux$blocks, list(...))))
+  sim_desig <- do.call(cbind, sim_desig_list)
+  sim_desig <- cbind(dplyr::select(aux,female, age, pot_out_z0, pot_out_z1, design, blocks), sim_desig)
+  sim_desig <- sim_desig %>% pivot_longer(as.character(seq(1:n)), names_to = "sample", values_to = "treatment_z")
+  sim_desig$sample<-as.numeric(sim_desig$sample)
+  sim_desig <- sim_desig[order(sim_desig$sample, sim_desig$age, sim_desig$female),]
+  sim_desig <- mutate(sim_desig,outcome_y=pot_out_z0*(1-treatment_z) + pot_out_z1*treatment_z)
+  return(sim_desig)
+}
+```
+
+Primero la del diseño 1 que está totalmente aleatorizada:
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+rand_design_1 <- sims_design(omega,4,1,4)
+rand_design_2 <- sims_design(omega,4,2,2,2)
+rand_design_3 <- sims_design(omega,4,3,1,1,1,1)
+
+# Se imprime 1 de las 4 simulaciones del diseño 1
+print_df(head(rand_design_1,8))
+```
+
+La del diseño 2 que aleatoriza considerando los bloques de jóvenes (40-50) y mayores (60-70):
+
+```{r}
+# Se imprime 1 de las 4 simulaciones del diseño 2
+print_df(head(rand_design_2,8))
+```
+
+Y la del diseño 3 que asigna los tratamientos aleatorios en cada grupo conformado por personas de la misma edad y género (gemelos):
+
+```{r}
+# Se imprime 1 de las 4 simulaciones del diseño 3
+print_df(head(rand_design_3,8))
+```
+
+
+Dado que se conocía de antemano el posible resultado de presión arterial de cada participante asumiendo que tomará o no 
+el tratamiento (bajo el supuesto de omnisciencia), se calcularán las 4 estimaciones solicitadas para los 3 diferentes diseños:
+
+* Diferencia de medias
+* Coeficiente $\tau$ para las 3 regresiones lineales solicitadas
+  * $y_{outcome} = \alpha + \tau z_{treatment} + \beta_{1}age$
+  * $y_{outcome} = \alpha + \tau z_{treatment} + \beta_{1}age + \beta_{2}female$
+  * $y_{outcome} = \alpha + \tau z_{treatment} + \beta_{1}age + \beta_{2}female + \beta_{3}age*female$
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+# Función para obtener la diferencia del outcome promedio de
+# los sujetos con tratamiento menos la media de los outcomes de
+# los sujetos sin tratamiento
+dif_medias_fun <- function(df){
+  df %>%
+    group_by(sample, treatment_z) %>%
+    summarize(medias=mean(outcome_y)) %>%
+    pivot_wider(names_from=treatment_z, names_glue = "{.value}_{treatment_z}", values_from=medias) %>%
+    mutate(dif_medias=medias_1 - medias_0) %>%
+    dplyr::select(-c(medias_1, medias_0))
+}
+
+# Función para crear modelo de regresión lineal con brm
+get_mod <- function(df, ...){
+  formula_str <- paste0(list(...)[1], " ~ ", list(...)[2])
+  if (length(list(...)) >2)
+    for (i in 3:length(list(...)))
+      formula_str <- paste0(formula_str, " + ", list(...)[i])
+
+  model<-brm(data=df,
+         formula=formula(formula_str),
+         # prior = c(prior(normal(0, 1.5), class = Intercept),
+         # prior(normal(0, 0.5), class = b)),
+         seed=SEED,
+         refresh = 0)
+  return(model)
+}
+
+# Función para generar modelos por cada sample (el ejercicio pide 4)
+get_mod_by_sample <- function(df, ...){
+  list_mod <- NULL
+  for(i in 1:dim(table(df$sample))){
+    # metemos en una lista el dataframe de los datos (filtrados por sample)
+    # y los parámetros dinámicos que forman la fórmula de la regresión
+    aux <- c(list(filter(df,sample==i)),list(...))
+    list_mod[[i]] <- do.call(get_mod,aux)
+  }
+  return(list_mod)
+}
+
+# Función que obtiene los coeficientes de una lista de modelos
+# capturándolos en un dataframe
+get_coefs_models_brm <- function(list_models){
+  aux_df<-NULL
+  for(i in 1:length(list_models)){
+    # Con fixef obtenemos los coeficientes del modelo
+    # arrojados como matrix, obteniendo la primera columna
+    # donde están los coeficientes del modelo
+    aux_df<-rbind(aux_df,fixef(list_models[[i]])[,1])
+    # print(fixef(list_models[[i]])[,1])
+  }
+  return(aux_df)
+}
+```
+
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+3a_d1<-dif_medias_fun(rand_design_1)
+3a_d1
+```
+
+
+```{r}
+3b_d1<-get_coefs_models_brm(get_mod_by_sample(rand_design_1, "outcome_y", "treatment_z", "age"))
+3b_d1
+```
+
+
+```{r}
+get_coefs_models_brm(get_mod_by_sample(rand_design_1, "outcome_y", "treatment_z", "age", "female"))
+```
+
+
+```{r}
+get_coefs_models_brm(get_mod_by_sample(rand_design_1, "outcome_y", "treatment_z", "age", "female", "treatment_z*female"))
+```
+
+
+
+```{r}
+dif_medias_fun(rand_design_2)
+```
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+get_coefs_models_brm(get_mod_by_sample(rand_design_2, "outcome_y", "treatment_z", "age"))
+get_coefs_models_brm(get_mod_by_sample(rand_design_2, "outcome_y", "treatment_z", "age", "female"))
+get_coefs_models_brm(get_mod_by_sample(rand_design_2, "outcome_y", "treatment_z", "age", "female", "treatment_z*female"))
+```
+
+```{r}
+dif_medias_fun(rand_design_3)
+```
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+get_coefs_models_brm(get_mod_by_sample(rand_design_3, "outcome_y", "treatment_z", "age"))
+get_coefs_models_brm(get_mod_by_sample(rand_design_3, "outcome_y", "treatment_z", "age", "female"))
+get_coefs_models_brm(get_mod_by_sample(rand_design_3, "outcome_y", "treatment_z", "age", "female", "treatment_z*female"))
+```
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!                                                                               !!!!!!!!!
+!!!!!!!!!!!! FALTA COMENTAR LO DEL SESGO RELATIVO Y EFICIENCIA DE LOS RESULTADOS OBTENIDOS !!!!!!!!!
+!!!!!!!!!!!!                                                                               !!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+mean(dif_medias_fun(sims_design(omega,10000,1,4))$dif_medias)
+mean(dif_medias_fun(sims_design(omega,10000,2,2,2))$dif_medias)
+mean(dif_medias_fun(sims_design(omega,100,3,1,1,1,1))$dif_medias)
+```
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+# Una regresión con todos los posibles outcomes capta la diferencia de medias de -7.5
+x<-factor(c(0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1))
+y<-c(140,140,150,150,160,160,170,170,135,135,140,140,155,155,160,160)
+lm(y ~ x)
+```
+
+
+
+`r col_square("**4.** Inferencia Causal y Modelos de Regresión: vacas")`
+
+*Aleatorización desordenada*: los datos de `vacas.txt` contiene datos de un
+experimento que se llevó a cabo con 50 vacas para estimar el efecto de un
+complemento alimenticio en 6 resultados relacionados con la cantidad de grasa
+láctea producida por cada vaca. Se consideraron cuatro dietas (tratamientos),
+correspondientes a diferentes niveles del complemento, y se registraron tres
+variables antes de la asignación del tratamiento: número de lactancia
+(temporadas de lactancia), edad y peso inicial de la vaca.
+
+Las vacas se asignaron inicialmente a tratamientos completamente al azar, y
+después se revisaron las distribuciones de las tres covariables para verificar
+el equilibrio a lo largo de los grupos de tratamiento. Se probaron varias
+aleatorizaciones, y la que produjo el "mejor" equilibrio con respecto a las tres
+covariables fue la que se escogió. El tratamiento depende sólo de las
+covariables completamente observadas y no de las no registradas como el aspecto
+físico de las vacas o los momentos en los que vacas entraron en el estudio. Esto
+es porque las decisiones de volver a aleatorizar no son explicados.
+Consideraremos diferentes estimaciones del efecto del complemento en la grasa
+láctea media diaria producida.
+
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+Vacas <- read_delim("vacas.txt", delim = " ") %>%
+  type.convert() %>%
+  as.data.frame()
+
+# CHECAR SI SE PUEDE EVITAR CREAR ATRIBUTOS Y/O SI ES NECESARIO ELMINARLOS
+attr(Vacas, 'problems') <- NULL
+attr(Vacas, 'spec') <- NULL
+Vacas <- as.tibble(Vacas)
+
+Vacas <- mutate(Vacas, y_mdmf=milk*fat) # mdmf: mean_daily_milk_fat
+
+print_df(head(Vacas,10))
+```
+
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+print_df(descr(Vacas))
+```
+
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
+# Si se quisiera visualizar el summary corriendo solo este chunck hacerlo con:
+# print(dfSummary(Vacas, plain.ascii=FALSE, style="grid", valid.col=FALSE), method="render")
+
+# Con lo sisuientes parámetros (incluido la opción del chunk "results='asis'", puede
+# visualizarse el summary cuando se genera el html)
+dfSummary(Vacas, plain.ascii = FALSE, style = "grid", graph.magnif = 0.75, valid.col = TRUE, tmp.img.dir = "/tmp")
+```
+
+
+## `r colorize("Inciso  **4.a**", subtitle=TRUE)`
+
+Considera la regresión massimple de la grasa láctea media diaria con el nivel
+de complemento. Calcula el efecto del tratamiento estimado (coeficiente de
+regresión) y el error estándar, y explica por qué este no es un análisis
+completamente apropiado dada la aleatorización utilizada.
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
+
+models_4b<-brm(data=Vacas,
+       formula=formula(y_mdmf ~ level),
+       # prior = c(prior(normal(0, 1.5), class = Intercept),
+       # prior(normal(0, 0.5), class = b)),
+       seed=SEED,
+       cores = 4,
+       backend = "cmdstanr",
+       refresh = 0
+       )
+
+summary(models_4b)
+# fixef(models_4b)
+```
+
+
+## `r colorize("Inciso  **4.b**", subtitle=TRUE)`
+
+Agrega más predictores al modelo. Explica el razonamiento para la elección de
+covariables en el modelo. Compare el efecto estimado del tratamiento con el
+resultado de (a).
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
+# Funcion auxiliar que recibe una texto y devuelve 1eros 2 caractéres y si 
+# encuentra un "*" lo agrega a la salida junto con los 2 siguientes caracteres
+# que le siguen
+# Ejemplo: ref_var_name("hola")       --> "ho"
+#          ref_var_name("hola*adios") --> "ho*ad"
+ref_var_name<-function(str_var_list){
+  aux_list<-NULL
+  for(i in 1:length(str_var_list)){
+    position<-unlist(gregexpr('\\*', str_var_list[i]))[1]
+    aux<-NULL
+    if(position>0)
+      aux<-paste0('*',str_sub(str_var_list[i],position+1,position+2))
+    aux_list[i]<-paste0(str_sub(str_var_list[i],1,2),aux)
+  }
+  return(aux_list)
+}
+
+# Función que permite calcular un modelo con brm con base en un dataframe 
+# (donde están las variables del modelo) y las variables que conforman la fórmula de la regresión
+# )cuyas variables son tomadas de la lista de parámetros dinámicos)
+# Ejemplo: get_mod_4b(df, "A", ) --> Calculará un modelo con brm con la fórmula: 
+get_mod_4b <- function(df, ...){
+  formula_str <- paste0(list(...)[1], " ~ ", list(...)[2])
+  if (length(list(...)) >2)
+    for (i in 3:length(list(...)))
+      formula_str <- paste0(formula_str, " + ", list(...)[i])
+
+  model<-brm(data=df,
+         formula=formula(formula_str),
+         # prior = c(prior(normal(0, 1.5), class = Intercept),
+         # prior(normal(0, 0.5), class = b)),
+         seed=SEED,
+         cores = 4,
+         backend = "cmdstanr",
+         refresh = 0
+         )
+  return(model)
+}
+
+get_all_models_4b <- function(df, combination_var){
+  list_models<-NULL  
+  for (i in 1:length(combination_var)){
+    aux <- c(list(df),unlist(combination_var[i]))
+    list_models[[i]]<-do.call(get_mod_4b,aux)
+  }
+  return(list_models)
+}
+
+combination_var<-list(
+  c("level","age"),
+  c("level","initial.weight"),
+  c("level","lactation"),
+  c("level","age", "initial.weight"),
+  c("level","age","lactation"),
+  c("level","initial.weight","lactation"),
+  c("level","age","initial.weight","lactation"),
+  c("level","age","level*age"),
+  c("level","initial.weight", "level*initial.weight"),
+  c("level","lactation", "level*lactation"),
+  c("level","age", "initial.weight","level*age","level*initial.weight","age*initial.weight"),
+  c("level","age","lactation", "level*age","level*lactation","age*lactation"),
+  c("level","initial.weight","lactation","level*initial.weight","level*lactation","initial.weight*lactation"),
+  c("level","age","initial.weight","lactation","level*age",
+    "level*initial.weight","level*lactation","age*initial.weight","age*lactation","initial.weight*lactation")
+)
+
+# Obtenemos los modelos formulados en combination_var
+models_4b<-c(list(models_4b),get_all_models_4b(Vacas,combination_var))
+
+# Agregamos a la lista de modelos el del 4a
+combination_var<-c("level",combination_var)
+# Pondremos nombres a todos los modelos
+models_names<-lapply(combination_var,ref_var_name)
+models_names<-sapply(models_names, paste, collapse = "_")
+# Con lo siguiente podrá verse cualquier modelo de la lista por su nombre
+# ejemplo: models_4b['le_la_le*la']
+names(models_4b)<-models_names
+
+models_4b
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
+lapply(summary,models_4b)
+summary(models_4b[[1]])
+```
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
+loo_list<-lapply(models_4b,loo)
+loo_compare(loo_list)
+```
+
+
+```{r}
+models_4b['le_la_le*la']
+```
+
+
+## `r colorize("Inciso  **4.c**", subtitle=TRUE)`
+
+Repite (**`r colorize("4. b", "#00614E")`**), esta vez considerando el nivel del complemento como un predictor
+categórico con cuatro niveles. Haga una gráfica que muestre la estimación (y el
+error estándar) del efecto del tratamiento en cada nivel, y también mostrando la
+inferencia del modelo ajustado en (**`r colorize("4. b", "#00614E")`**).
+
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
+Vacas<-dummy_cols(Vacas, select_columns = "level")
+print_df(Vacas)
+```
+
