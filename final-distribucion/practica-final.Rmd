@@ -839,6 +839,7 @@ g_2b<-tabla_2b_fm %>% #usamos las predicciones que obtuvimos
   labs(y = "prediccion.muertes")
 
 g_2a_feminidad.centrada_prediccion.muertes+g_2b
+g_2b
 ```
 
 
@@ -913,6 +914,7 @@ deaths_sim.PI <- apply(deaths_sim, 2, PI)
 # superimpose sampling interval as dashed lines
 lines(pred_dat$F, deaths_sim.PI[1, ], lty = 2)
 lines(pred_dat$F, deaths_sim.PI[2, ], lty = 2)
+
 ```
 
 What’s there left to say other than: “Look at that increased uncertainty of our model” at this point? Well, we can talk about the accuracy of our predictions. They still blow. The uncertainty of our model is nice and all, but with a predictive accuracy like this why would we trust the model?
