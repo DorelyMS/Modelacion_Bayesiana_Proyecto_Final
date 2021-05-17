@@ -610,7 +610,7 @@ head(tabla_2a_fm)
 
 
 ```{r}
-#Gráfico Dispersión muertes vs predictor: peso.centrado
+#Gráfico Dispersión muertes vs predictor: feminidad.centrada
 g_2a_feminidad_muertes<-tabla_2a_fm %>% 
   ggplot(aes(x=feminidad,y=muertes)) +
   ylim(0,260)+
@@ -653,6 +653,12 @@ tabla_2a_fm %>%
   head(5)
 ```
 
+```{r}
+tabla_2a_fm %>%
+  arrange(diagnostico.psis) %>%
+  head(5)
+```
+
 ¿Qué tormentas son las que no son tan fáciles de predecir?
 
 ```{r}
@@ -661,6 +667,12 @@ tabla_2a_fm %>%
   head(5)
 ```
 
+
+```{r}
+tabla_2a_fm %>%
+  arrange(desc(diagnostico.psis)) %>%
+  head(5)
+```
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -1361,7 +1373,6 @@ efec<-function(){
   return((x2%*%y2 - x1%*%y1)/4)
 }
 mean(rerun(10000,efec()) %>% flatten_dbl())
-
 ```
 
 
