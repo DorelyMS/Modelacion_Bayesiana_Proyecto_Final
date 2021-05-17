@@ -94,10 +94,10 @@ El examen está compuesto por cuatro apartados cuyos pesos son los siguientes:
 library(tidymodels)
 library(tidyverse)
 library(cmdstanr)
-library(rstanarm)
+#library(rstanarm)
 library(bayesplot)
 library(loo)
-
+library(dplyr)
 library(patchwork)
 library(scales)
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning=FALSE, 
@@ -431,6 +431,12 @@ fit_1c_2 <- ulam(
 #   )
 # )
 ```
+
+
+
+
+
+
 
 
 
@@ -860,6 +866,8 @@ o las dos `damage_norm` y `min_pressure`. Ajusta una serie de modelos evaluando
 estas interacciones. Interpreta y compara los modelos. Al interpretar las
 estimaciones, te puede ayudar a generar predicciones que contrasten los
 huracanes con nombres masculinos y femeninos. ¿Son probables los coeficientes?
+Si el coeficiente es positivo, cuál es la prob de que sea mayor a cero?
+Si el coeficiente es negativo, cuál es la prob de que sea menor a cero?
 
 ## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
 
@@ -1031,22 +1039,6 @@ lambda_f <- link(fit_2c_fd_negbin, data = dano_pred_f)
 lambda_m <- link(fit_2c_fd_negbin, data = dano_pred_m)
 ```
 
-```{r}
-lambda_m.mu <- apply(lambda_m, 2, mean)
-lambda_m.PI <- apply(lambda_m, 2, PI)
-```
-
-```{r}
-lambda_f.mu <- apply(lambda_f, 2, mean)
-lambda_f.PI <- apply(lambda_f, 2, PI)
-```
-
-
-
-
-```{r}
-pred(fit_2c_fpd_negbin)
-```
 
 
 /////////////////////////////////////////////////////////////////////////
@@ -1160,6 +1152,9 @@ So why is the interaction effect so strong? Probably because of those 3-4 highly
 
 ////////////////////////////////////////////////////////////////////////
 
+
+
+
 ## `r colorize("Inciso  **2.d**", subtitle=TRUE)`
 
 En el artículo original sobre huracanes, se utilizó directamente el daño por
@@ -1172,6 +1167,106 @@ predictor. Usando la mejor estructura de modelo del inciso anterior, compara un
 modelo que usa `log(damage_norm)` a un modelo que usa `damage_norm`
 directamente. Compara la capacidad predictiva, así como sus predicciones
 implícitas. ¿Qué es lo que concluyes?
+
+```{r}
+fit_2d_fd_negbin_log<-brm(data=huracanes,
+            family=negbinomial,
+             deaths~ 1 + feminidad.std +log(damage_norm)+feminidad.std*log(damage_norm),
+            #+feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2d_fd_negbin_log")
+
+summary(fit_2d_fd_negbin_log, digits = 2)
+```
+
+
+```{r}
+loo_2d_fd_negbin_log<-loo(fit_2d_fd_negbin_log) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2d_fd_negbin_log  #imprime resultados
+```
+
+```{r}
+comparativo_loo_2d<-cbind(loo_2c_fd_negbin,loo_2d_fd_negbin_log) #guarda comparativo
+comparativo_loo_2d #imprime comparativo de modelos
+```
+
+```{r}
+comparativo_diff_loo_2d<-loo_compare(loo_2c_fd_negbin,loo_2d_fd_negbin_log) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
+comparativo_diff_loo_2d  #imprime comparativo de modelos
+```
+
+
+```{r}
+plot(loo_2d_fd_negbin_log)
+```
+
+```{r}
+plot(conditional_effects(fit_2d_fd_negbin_log, effects = "damage_norm"))
+```
+
+
+```{r}
+pp_check(fit_2c_fd_negbin, nsamples = 100, iterations = 30, check_range = FALSE, re_formula = NULL)
+pp_check(fit_2d_fd_negbin_log, nsamples = 100, iterations = 30, check_range = TRUE, re_formula = NULL)
+```
+
+```{r}
+tabla_2c_dm<-as.data.frame(cbind(huracanes,predict(fit_2c_fd_negbin)[,1])) #,re_formula = NA
+tabla_2c_dm<-tabla_2c_dm[,-c(2,4:5,9:11)]
+colnames(tabla_2c_dm) <- c("name","deaths","damage_norm","female","femininity", "prediccion.muertes")
+head(tabla_2c_dm)
+```
+
+```{r}
+tabla_2d_dmlog<-as.data.frame(cbind(huracanes,predict(fit_2d_fd_negbin_log)[,1])) #,re_formula = NA
+tabla_2d_dmlog<-tabla_2d_dmlog[,-c(2,4:5,9:11)]
+colnames(tabla_2d_dmlog) <- c("name","deaths","damage_norm","female","femininity", "prediccion.muertes")
+head(tabla_2d_dmlog)
+```
+
+
+```{r}
+#Gráfico Dispersión muertes vs predictor: logdamage_norm
+g_2c_damage_norm_muertes<-tabla_2c_dm %>% 
+  ggplot(aes(x=damage_norm,y=deaths)) +
+  ylim(0,260)+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(title = "Damage_norm vs muertes observadas")
+
+g_2c_damage_norm_muertes_pred<-tabla_2c_dm %>% 
+  ggplot(aes(x=damage_norm,y=prediccion.muertes)) +
+  ylim(0,260)+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(title = "damage_norm vs muertes predichas")
+
+g_2c_damage_norm_muertes+g_2c_damage_norm_muertes_pred
+```
+
+
+
+```{r}
+#Gráfico Dispersión muertes vs predictor: logdamage_norm
+g_2d_logdamage_norm_muertes<-tabla_2d_dmlog %>% 
+  ggplot(aes(x=damage_norm,y=deaths)) +
+  ylim(0,260)+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(title = "Damage_norm vs muertes observadas")
+
+g_2d_logdamage_norm_muertes_pred<-tabla_2c_dm %>% 
+  ggplot(aes(x=log(damage_norm),y=prediccion.muertes)) +
+  ylim(0,260)+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(title = "logdamage_norm vs muertes predichas")
+
+g_2d_logdamage_norm_muertes+g_2d_logdamage_norm_muertes_pred
+```
+
+
 
 ## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
 
@@ -1243,6 +1338,10 @@ shade(sqrt(lambda_f.PI), S2_seq, col = col.alpha("red", 0.2))
 Now this model fits the data much better! Still not perfect, but much better.
 
 /////////////////////////////////////////////////////////////////////////
+
+
+
+
 
 
 `r col_square("**3.** Inferencia Causal: experimentos aleatorizados")`
