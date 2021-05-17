@@ -714,6 +714,13 @@ tabla_2a_fm %>%
   head(5)
 ```
 
+Por último, calculamos el intervalo del 89% para utilizarlo como comparativo para el modelo que revisaremos en el siguiente inciso.
+
+```{r}
+tabla_2a_fm<-as.data.frame(cbind(tabla_2a_fm,predictive_interval(fit_2b,prob=0.89)))
+colnames(tabla_2a_fm) <- c("nombre","muertes","feminidad","feminidad.centrada","prediccion.muertes","error.absoluto","diagnostico.psis","int_li_0.055","int_li_0.945")
+head(tabla_2a_fm)
+```
 
 ## `r colorize("Inciso  **2.b**", subtitle=TRUE)`
 
@@ -771,7 +778,6 @@ Por último, calculamos el intervalo del 89% para verificar que se superpone el 
 
 ```{r}
 tabla_2b_fm<-as.data.frame(cbind(huracanes,predict(fit_2b)[,1],predictive_interval(fit_2b,prob=0.89))) #,re_formula = NA
-tabla_2b_fm<-tabla_2b_fm[,-c(2,4:7)]
 colnames(tabla_2b_fm) <- c("nombre","muertes","feminidad","feminidad.centrada","prediccion.muertes","int_li_0.055","int_li_0.945")
 head(tabla_2b_fm)
 ```
@@ -783,6 +789,7 @@ g_2a_feminidad.centrada_prediccion.muertes<-tabla_2a_fm %>%
   ggplot(aes(x=feminidad.centrada,y=prediccion.muertes)) +
   ylim(0,260)+
   geom_point(colour="red")+
+  geom_ribbon(aes(ymin=int_li_0.055,ymax=int_li_0.945),fill = "grey70",alpha=.3) + #bandas de predicción
   geom_jitter(data=tabla_2a_fm, # %>% #agregamos los datos de la muestra
                aes(feminidad.centrada,muertes),
                height = 0, width = 0.01, colour="black") +
@@ -794,14 +801,15 @@ g_2b<-tabla_2b_fm %>% #usamos las predicciones que obtuvimos
   ggplot(aes(feminidad.centrada,muertes)) +
   ylim(0,260)+ #graficamos feminidad.centrada vs muertes
   geom_ribbon(aes(ymin=int_li_0.055,ymax=int_li_0.945),fill = "grey70",alpha=.3) + #bandas de predicción
-   geom_line(data=tabla_2b_fm, # %>% #agregamos los datos de la muestra filtrándolas con peso mayor a 32 
+   geom_jitter(data=tabla_2b_fm, # %>% #agregamos los datos de la muestra filtrándolas con peso mayor a 32 
                aes(feminidad.centrada,prediccion.muertes),
                height = 0, width = 0.01, colour="red") +
   geom_jitter(data=tabla_2b_fm, # %>% #agregamos los datos de la muestra
                aes(feminidad.centrada,muertes),
                height = 0, width = 0.01, colour="black") +
-  labs(title = "Modelo Binomial Negativo") + 
-  labs(y = "prediccion.muertes")
+  labs(title = "Modelo Binomial Neg") + 
+  labs(y = "prediccion.muertes")+
+  theme_classic()
 
 g_2a_feminidad.centrada_prediccion.muertes+g_2b
 ```
