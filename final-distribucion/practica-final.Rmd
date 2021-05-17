@@ -492,6 +492,8 @@ las que no son tan fáciles de predecir?
 
 ## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
 
+Obtenemos la descripción de las variables a través de la ayuda `?Hurricanes`
+
 1. name : Nombre del Huracán
 2. year : Año del Huracán
 3. deaths : Número de muertes
@@ -502,20 +504,42 @@ las que no son tan fáciles de predecir?
 8. femininity : feminidad sobre el nombre del huracán en escala de 1 a 11, de 
 1-11 scale from totally masculine (1) to totally feminine (11) for name. Average of 9 scores from 9 raters.
 
-Ajustamos un modelo de Poisson de muertes a partir de la feminidad. Primero centramos la variable de feminidad alrededor de su media para poder dar una interpretación más sencilla al modelo para predecir el número de muertes:
-
-El punto de referencia, por tanto, parte del score de feminidad promedio en los huracanes que es de:
+Primero graficaremos el número de muertes vs nuestro predictor (feminidad) para observar la relación entre las variables
 
 ```{r}
 # Guardamos el dataset en otra variable para agregar unas variables
 huracanes <- Hurricanes
+```
+
+```{r}
+#Gráfico Dispersión muertes vs predictor: feminidad
+g_2a_feminidad_muertes<-tabla_2a_fm %>% 
+  ggplot(aes(x=feminidad,y=muertes)) +
+  ylim(0,260)+
+  geom_point()+
+  labs(title = "Muertes vs Feminidad")+
+  geom_vline(xintercept=5, linetype="dashed", #línea para diferenciar visualmente los dos grupos
+                color = "gray")+
+  theme_classic()
+g_2a_feminidad_muertes
+```
+
+En el gráfica anterior, logramos apreciar 2 grupos relativamente separados, los cuales corresponden a nombres de huracanes con feminidad menor a 5 que tienen asociadas muertes menores a 100 y  el grupo con feminidad mayor a 5 el cual posee 4 nombres de huracanes con muertes mayores a 100.
+
+Ahora ajustamos un modelo de Poisson para el número de muertes a partir de la feminidad. Primero centramos la variable de feminidad alrededor de su media para poder dar una interpretación al intercepto.
+
+El punto de referencia, del score de feminidad promedio en los huracanes fue de:
+
+```{r}
 round(mean(huracanes$femininity),1)
 ```
 
-```{r, message=FALSE, cache = TRUE}
+Y agregamos la variable feminidad.centrada a nuestro dataset
+
+```{r}
 feminidad.centrada<-as.data.frame(scale(huracanes$femininity,scale = FALSE)) #centramos feminidad alrededor de su media
 colnames(feminidad.centrada)<-c("feminidad.centrada") #la nombramos feminidad.centrada
-huracanes<-cbind(huracanes,feminidad.centrada) #integramos las variables en menores.edad
+huracanes<-cbind(huracanes,feminidad.centrada) #integramos las variables en huracanes
 
 head(huracanes) #imprimimos las primeras observaciones
 ```
@@ -533,18 +557,21 @@ fit_2a<-brm(data=huracanes,
 summary(fit_2a, digits = 2)
 ```
 
-De lo anterior, encontramos que la feminidad.centrada tiene un efecto positivo sobre el número de muertes cuando este valor se incrementa con respecto a la media.
+De lo anterior, encontramos que la feminidad.centrada tiene un efecto positivo sobre la predicción del número de muertes es decir, si el valor de la feminidad.centrada aumenta, la predicción del número de muertes aumenta.  
+
+A continuación, revisamos cuáles son las distribuciones previas que se generaron por default para los coeficientes:
 
 ```{r}
 prior_summary(fit_2a)
 ```
 
+
+
 ```{r}
 plot(conditional_effects(fit_2a, effects = "feminidad.centrada"))
 ```
 
-
-A continuación ajustamos el modelo de muertes Poisson con sólo intercepto para comparar.
+Luego ajustamos nuestro segundo modelo Poisson de muertes con sólo intercepto como predictor.
 
 ```{r}
 fit_2a1<-brm(data=huracanes,
@@ -557,49 +584,57 @@ fit_2a1<-brm(data=huracanes,
 summary(fit_2a1, digits = 2)
 ```
 
+De lo anterior, encontramos que el intercepto es de 3.03 sin la aportación de la variable feminidad.centrada. 
 
 ```{r}
 prior_summary(fit_2a1)
 ```
 
-Y vemos que el coeficiente del intercepto incrementa un poco. Vamos a comparar ambos modelos a continuación:
+Verificamos que el intercepto tiene el mismo default de la distribución previa.
 
+Ahora vamos a comparar ambos modelos en términos de la capacidad predictiva con ayuda de los criterios de información:
 
 ```{r}
 loo_2a<-loo(fit_2a) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
 loo_2a #imprime resultados 
 ```
+Y vemos que el diagnóstico del modelo con la feminidad.centrada es muy malo, ya que coloca 4 observaciones en esta categoría. Dichas observaciones se pueden apreciar en la siguiente gráfica:
 
 ```{r}
 plot(loo_2a)
 ```
 
+
 ```{r}
 loo_2a1<-loo(fit_2a1) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
 loo_2a1 #imprime resultados 
 ```
+Y vemos que el diagnóstico del modelo con sólo intercepto también es muy malo, ya que coloca 3 observaciones en esta categoría. Dichas observaciones se pueden apreciar en la siguiente gráfica:
 
 ```{r}
 plot(loo_2a1)
 ```
 
-Compara el modelo a un modelo de muertes Poisson con sólo intercepto.
-
+Aunque ambos son muy malos, compararemos sus resultados como se indica en la instrucción.
 
 ```{r}
 comparativo_loo_2a<-cbind(loo_2a,loo_2a1) #guarda comparativo
 comparativo_loo_2a
 ```
 
+De lo anterior, vemos que la devianza de ambos modelos es cercana a 4,400 y dado que sus errores estándar sobre todas las observaciones son de aprox. 1,000 no es posible decidir cuál modelo es mejor. A continuación los compararemos en términos de la log-densidad (elpd_loo)
 
 ```{r, message=FALSE}
 comparativo_diff_loo_2a<-loo_compare(loo_2a,loo_2a1) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
 comparativo_diff_loo_2a #imprime comparativo
 ```
 
+A pesar de que coloca en primer lugar al modelo con feminidad.centrada, la diferencia y el error estándar del mismo es tan pequeño que no podemos concluir de forma contundente que el modelo con feminidad.centrada es superior en todos los casos al que incluye solamente el intercepto.
 
-¿Qué tan fuerte es la asociación entre la feminidad del nombre y el
-número de muertes?
+Ahora, procederemos a contestar la pregunta de *¿Qué tan fuerte es la asociación entre la feminidad del nombre y el
+número de muertes?*
+
+Calculamos las predicciones del número de muertes con el modelo que incluye la feminidad.centrada:
 
 ```{r}
 tabla_2a_fm<-as.data.frame(cbind(huracanes,predict(fit_2a)[,1])) #,re_formula = NA
@@ -607,16 +642,16 @@ tabla_2a_fm<-tabla_2a_fm[,-c(2,4:7)]
 colnames(tabla_2a_fm) <- c("nombre","muertes","feminidad","feminidad.centrada","prediccion.muertes")
 head(tabla_2a_fm)
 ```
-
+Y hacemos un gráfico de dispersión para analizar la asociación de las variables de manera gráfica:
 
 ```{r}
-#Gráfico Dispersión muertes vs predictor: feminidad.centrada
-g_2a_feminidad_muertes<-tabla_2a_fm %>% 
+#Gráfico Dispersión muertes vs predictor: feminidad
+g_2a_feminidad_muertes<-tabla_2a_fm %>%
   ggplot(aes(x=feminidad,y=muertes)) +
   ylim(0,260)+
   geom_point()+
-  geom_smooth(method = "lm")+
-  labs(title = "Muertes vs Feminidad")
+  labs(title = "Muertes vs Feminidad")+
+  theme_classic()
 
 #Gráfico Dispersión altura vs predictor 1: peso.centrado
 g_2a_feminidad.centrada_prediccion.muertes<-tabla_2a_fm %>% 
@@ -626,11 +661,15 @@ g_2a_feminidad.centrada_prediccion.muertes<-tabla_2a_fm %>%
   geom_jitter(data=tabla_2a_fm, # %>% #agregamos los datos de la muestra
                aes(feminidad.centrada,muertes),
                height = 0, width = 0.01, colour="black") +
-  labs(title = "Predicción vs Fem.cen")
+  labs(title = "Pred muertes vs Fem.cen")+
+  theme_classic()
 
 g_2a_feminidad_muertes+g_2a_feminidad.centrada_prediccion.muertes
 ```
 
+No se aprecia una asociación contundente entre la feminidad.centrada del nombre de un huracán con respecto a las muertes causadas por este tipo de fenómenos.
+
+Ahora pasamos a la pregunta *¿Qué tormentas ajustan bien con el modelo? *. Para lo cual, calculamos primero la diferencia en términos absolutos de las muertes observadas vs la predicción de muertes con el modelo que incluye la feminidad.centrada:
 
 ```{r}
 tabla_2a_fm<-tabla_2a_fm %>% 
@@ -643,9 +682,7 @@ tabla_2a_fm<-tabla_2a_fm %>%
   mutate(diagnostico.psis=loo_2a$pointwise[,5])
 head(tabla_2a_fm)
 ```
-
-
-¿Qué tormentas ajustan bien con el modelo? 
+A continuación, mostramos el top 5 de los nombres de los huracanes que  ajustan mejor al modelo en términos del error absoluto:
 
 ```{r}
 tabla_2a_fm %>%
@@ -653,13 +690,15 @@ tabla_2a_fm %>%
   head(5)
 ```
 
+Las primeros 4 huracanes, tienen un nombre masculino (incluso su score de feminidad es bajo o cercano a 2).
+
 ```{r}
 tabla_2a_fm %>%
   arrange(diagnostico.psis) %>%
   head(5)
 ```
 
-¿Qué tormentas son las que no son tan fáciles de predecir?
+Ahora responderemos *¿Qué tormentas son las que no son tan fáciles de predecir?*. Para lo cual, mostramos el top 5 de los nombres de los huracanes que peor ajuste presentan con el modelo en términos del error absoluto:
 
 ```{r}
 tabla_2a_fm %>%
@@ -667,6 +706,7 @@ tabla_2a_fm %>%
   head(5)
 ```
 
+Las primeros 4 huracanes, tienen un nombre femenino (incluso su score de feminidad alto por encima del 8).
 
 ```{r}
 tabla_2a_fm %>%
@@ -674,98 +714,6 @@ tabla_2a_fm %>%
   head(5)
 ```
 
-//////////////////////////////////////////////////////////////////////////
-
-Question: In 2014, a paper was published that was entitled “Female hurricanes are deadlier than male hurricanes.” As the title suggests, the paper claimed that hurricanes with female names have caused greater loss of life, and the explanation given is that people unconsciously rate female hurricanes as less dangerous and so are less likely to evacuate. Statisticians severely criticized the paper after publication. Here, you’ll explore the complete data used in the paper and consider the hypothesis that hurricanes with female names are deadlier. Load the data with:
-
-Acquaint yourself with the columns by inspecting the help ?Hurricanes. In this problem, you’ll focus on predicting deaths using femininity of each hurricane’s name.
-
-Fit and interpret the simplest possible model, a Poisson model of deaths using femininity as a predictor. You can use quap or ulam. Compare the model to an intercept-only Poisson model of deaths. How strong is the association between femininity of name and deaths? Which storms does the model fit (retrodict) well? Which storms does it fit poorly?
-
-Answer: First, let’s prepare the data:
-
-```{r, message=FALSE, cache = TRUE}
-d <- Hurricanes # load data on object called d
-d$fem_std <- (d$femininity - mean(d$femininity)) / sd(d$femininity) # standardised femininity
-dat <- list(D = d$deaths, F = d$fem_std)
-```
-
-Now that we have standardised data for the feminity of our hurricane names which makes priors easier to formulate, we can specify our initial model idea:
-
-```{r, message=FALSE, cache = TRUE}
-# model formula
-f <- alist(
-  D ~ dpois(lambda), # poisson outcome distribution
-  log(lambda) <- a + bF * F, # log-link for lambda with linear model
-  # priors in log-space, 0 corresponds to outcome of 1
-  a ~ dnorm(1, 1),
-  bF ~ dnorm(0, 1)
-)
-```
-
-But are these priors any good? Let’s simulate them why don’t we:
-
-```{r, message=FALSE, cache = TRUE}
-N <- 1e3
-a <- rnorm(N, 1, 1)
-bF <- rnorm(N, 0, 1)
-F_seq <- seq(from = -2, to = 2, length.out = 30) # sequence from -2 to 2 because femininity data is standardised
-plot(NULL,
-  xlim = c(-2, 2), ylim = c(0, 500),
-  xlab = "name femininity (std)", ylab = "deaths"
-)
-for (i in 1:N) {
-  lines(F_seq,
-    exp(a[i] + bF[i] * F_seq), # inverse link to get outcome scale
-    col = grau(), lwd = 1.5
-  )
-}
-```
-
-I’d think that’s pretty alright. We allow for both positive and negative trends between death toll and femininity of hurricane name, but don’t have a lot of explosive trends in our priors. These strong trends are quite unintuitive. Our vast majority of trends however are very ambiguous and so I proceed with these priors and run the model:
-
-```{r, message=FALSE, cache = TRUE}
-mH1 <- ulam(f, data = dat, chains = 4, cores = 4, log_lik = TRUE)
-precis(mH1)
-```
-
-So according to this, there is a positive relationship between hurricane name femininity and death toll. Which hurricanes do we actually retrodict well, though? Let’s plot, this:
-
-```{r, message=FALSE, cache = TRUE}
-# plot raw data
-plot(dat$F, dat$D,
-  pch = 16, lwd = 2,
-  col = rangi2, xlab = "femininity (std)", ylab = "deaths"
-)
-# compute model-based trend
-pred_dat <- list(F = seq(from = -2, to = 2, length.out = 1e2))
-lambda <- link(mH1, data = pred_dat) # predict deaths
-lambda.mu <- apply(lambda, 2, mean) # get mean prediction
-lambda.PI <- apply(lambda, 2, PI) # get prediction interval
-# superimpose trend
-lines(pred_dat$F, lambda.mu)
-shade(lambda.PI, pred_dat$F)
-# compute sampling distribution
-deaths_sim <- sim(mH1, data = pred_dat) # simulate posterior observations
-deaths_sim.PI <- apply(deaths_sim, 2, PI) # get simulation interval
-# superimpose sampling interval as dashed lines
-lines(pred_dat$F, deaths_sim.PI[1, ], lty = 2)
-lines(pred_dat$F, deaths_sim.PI[2, ], lty = 2)
-```
-
-
-Ok. There is quite a bit to unpack here. First of all, our model does not retrodict many of the hurricanes well even though it is quite certain of its predictions (grey shaded area which is hardly visible). Quite obviously, this model misses many of the hurricane death tolls to the right hand side of the above plot. This is a clear sign of over-dispersion which our model failed to account for. The weak, positive trend we are seeing here seems to be informed largely by these highly influential data points. We can assess whether and how influential some data points are with the Paraeto-K values (anything above 1 indicates an influential data point) following:
-
-```{r, message=FALSE, cache = TRUE}
-ggplot(as.data.frame(PSISk(mH1)), aes(x = PSISk(mH1))) +
-  stat_halfeye() +
-  theme_bw() +
-  labs(title = "Paraeto-K values", subtitle = "Values > 1 indicate highly influential data")
-```
-
-Boy! Some hurricanes really do drive our model to a big extent!
-
-//////////////////////////////////////////////////////////////////////////
 
 ## `r colorize("Inciso  **2.b**", subtitle=TRUE)`
 
@@ -778,6 +726,8 @@ preciso entre feminidad y muerte, con un intervalo de 89% que se superpone cero.
 
 ## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
 
+A continuación ajustamos el modelo explicativo Gamma-Poisson:
+
 ```{r}
 fit_2b<-brm(data=huracanes,
             family=negbinomial,
@@ -789,32 +739,35 @@ fit_2b<-brm(data=huracanes,
 summary(fit_2b, digits = 2)
 ```
 
+Identificamos que el coeficiente de la feminidad.centrada pierde precisión con respecto al modelo Poisson, derivado de que al 95% de confianza, el intervalo de credibilidad incluye al cero. Por lo que no contribuye positivamente con la predicción del número de muertes.
+
+Ahora mostramos las ditribuciones default para los coeficientes modelo anterior:
 
 ```{r}
 prior_summary(fit_2b)
 ```
 
+Y graficamos la distribución posterior de los coeficientes de nuestro modelo para contestar *Explicar por qué la asociación disminuyó*
+
+```{r}
+plot(fit_2b)
+```
+
+El Modelo gamma-Poisson (también conocido como binomial-negativo). Utiliza una distribución gamma que permite calcular una predicción de mortalidad para cada resultado individual de la feminidad.centrada en lugar de una predicción de mortalidad general como la Poisson. Al tener la gamma dos parámetros, implica que tiene información sobre la variabilidad de los datos, mientras que la Poisson tiene información de la media y la varianza en un sólo parámetro. Esto relaja la distribución Gamma y nos da una información posterior más amplia, pero le implica a los datos tener que dar más información sobre la media y la varianza. Al tener pocos datos (92) la asociación se complica utilizando la binomial negativa.
+
+A continuación mostramos el diagnóstico del modelo con loo:
 
 ```{r}
 loo_2b<-loo(fit_2b) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
 loo_2b #imprime resultados 
 ```
-
+En este caso, el diagnóstico nos arroja que nuestro modelo es bueno. Lo cual lo podemos verificar en la siguiente gráfica:
 
 ```{r}
 plot(loo_2b)
 ```
 
-```{r}
-plot(conditional_effects(fit_2b, effects = "feminidad.centrada"))
-```
-
-Demuestra que el modelo con sobre-dispersión ya no muestra un resultado positivo tan preciso entre feminidad y muerte, con un intervalo de 89% que se superpone cero.
-
-
-```{r}
-plot(fit_2b)
-```
+Por último, calculamos el intervalo del 89% para verificar que se superpone el cero así como las predicciones de muerte para este modelo.
 
 ```{r}
 tabla_2b_fm<-as.data.frame(cbind(huracanes,predict(fit_2b)[,1],predictive_interval(fit_2b,prob=0.89))) #,re_formula = NA
@@ -822,8 +775,20 @@ tabla_2b_fm<-tabla_2b_fm[,-c(2,4:7)]
 colnames(tabla_2b_fm) <- c("nombre","muertes","feminidad","feminidad.centrada","prediccion.muertes","int_li_0.055","int_li_0.945")
 head(tabla_2b_fm)
 ```
+Y generamos una gráfica comparativa con el modelo anterior (Poisson) y el actual (Binomial-Negativa)
 
 ```{r}
+#Gráfico Dispersión altura vs predictor 1: peso.centrado
+g_2a_feminidad.centrada_prediccion.muertes<-tabla_2a_fm %>% 
+  ggplot(aes(x=feminidad.centrada,y=prediccion.muertes)) +
+  ylim(0,260)+
+  geom_point(colour="red")+
+  geom_jitter(data=tabla_2a_fm, # %>% #agregamos los datos de la muestra
+               aes(feminidad.centrada,muertes),
+               height = 0, width = 0.01, colour="black") +
+  labs(title = "Modelo Poisson")+
+  theme_classic()
+
 #Graficamos las predicciones de la posterior del modelo para las muertes (media y bandas del 89%) incorporando los datos observados
 g_2b<-tabla_2b_fm %>% #usamos las predicciones que obtuvimos
   ggplot(aes(feminidad.centrada,muertes)) +
@@ -835,128 +800,31 @@ g_2b<-tabla_2b_fm %>% #usamos las predicciones que obtuvimos
   geom_jitter(data=tabla_2b_fm, # %>% #agregamos los datos de la muestra
                aes(feminidad.centrada,muertes),
                height = 0, width = 0.01, colour="black") +
-  labs(title = "Predicciones I=89%") + 
+  labs(title = "Modelo Binomial Negativo") + 
   labs(y = "prediccion.muertes")
 
 g_2a_feminidad.centrada_prediccion.muertes+g_2b
-g_2b
 ```
 
+Se observa cómo el modelo Binomial Negativo abarca más información de los datos derivado de 
 
-```{r, message=FALSE, cache = TRUE}
-comparativo_diff_loo_2b<-loo_compare(loo_2a,loo_2b) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
-comparativo_diff_loo_2b #imprime comparativo
-```
+Adicionalmente, se realizó una comparación de los modelos con LOO:
 
 ```{r}
 comparativo_loo_2b<-cbind(loo_2a,loo_2b) #guarda comparativo
 comparativo_loo_2b
 ```
 
-El Modelo gamma-Poisson (también conocido como binomial-negativo). Utiliza una distribución gamma que permite calcular una tasa de mortalidad para cada resultado individual de la feminidad.centrada en lugar de una tasa de mortalidad general como la Poisson. Al tener la gamma dos parámetros, implica que tiene información sobre la variabilidad de los datos, mientras que la Poisson tiene información de la media y la varianza en un solo parámetro. Esto relaja la distribución Gamma y nos da una información posterior más amplia, pero le implica a mis datos tener que dar más información sobre la media y la varianza. Al tener pocos datos la asociación se complica utilizando la binomial negativa.
+De esto, vemos que el modelo binomial negativo es claramente superior al modelo Poisson en términos de la devianza (looic) en el ajuste de los datos.
 
-/////////////////////////////////////////////////////////////////////////
-Question: Counts are nearly always over-dispersed relative to Poisson. So fit a gamma-Poisson (aka negative-binomial) model to predict deaths using femininity. Show that the over-dispersed model no longer shows as precise a positive association between femininity and deaths, with an 89% interval that overlaps zero. Can you explain why the association diminished in strength?
-
-Answer: To start this off, I load the library and data again, so much of the exercise and my solutions can stand by itself:
+Y por último, calculamos el comparativo de diferencia en términos de la log-densidad predictiva:
 
 ```{r, message=FALSE, cache = TRUE}
-d <- Hurricanes # load data on object called d
-d$fem_std <- (d$femininity - mean(d$femininity)) / sd(d$femininity) # standardised femininity
-dat <- list(D = d$deaths, F = d$fem_std)
+comparativo_diff_loo_2b<-loo_compare(loo_2a,loo_2b) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
+comparativo_diff_loo_2b #imprime comparativo
 ```
 
-Again, with the data prepared, we fit our model - the same model as before just with a different outcome distribution:
-
-```{r, message=FALSE, cache = TRUE}
-mH2 <- ulam(
-  alist(
-    D ~ dgampois(lambda, scale),
-    log(lambda) <- a + bF * F,
-    a ~ dnorm(1, 1),
-    bF ~ dnorm(0, 1),
-    scale ~ dexp(1) # strictly positive hence why exponential prior
-  ),
-  data = dat, chains = 4, cores = 4, log_lik = TRUE
-)
-precis(mH2)
-```
-
-Cool. Our previously identified positive relationship between standardised femininity of hurricane name and death toll is still there albeit slightly diminished in magnitude. However, the credible interval around it has widened considerably and overlaps zero now.
-
-Let’s compare the estimates of our models side by side:
-
-```{r, message=FALSE, cache = TRUE}
-plot(coeftab(mH1, mH2))
-```
-
-These shows quite clearly how our new model is much more uncertain of the parameters.
-
-So what about the predictions of this new model? I plot them the exact same way as previously:
-
-```{r, message=FALSE, cache = TRUE}
-# plot raw data
-plot(dat$F, dat$D,
-  pch = 16, lwd = 2,
-  col = rangi2, xlab = "femininity (std)", ylab = "deaths"
-)
-# compute model-based trend
-pred_dat <- list(F = seq(from = -2, to = 2, length.out = 1e2))
-lambda <- link(mH2, data = pred_dat)
-lambda.mu <- apply(lambda, 2, mean)
-lambda.PI <- apply(lambda, 2, PI)
-# superimpose trend
-lines(pred_dat$F, lambda.mu)
-shade(lambda.PI, pred_dat$F)
-# compute sampling distribution
-deaths_sim <- sim(mH2, data = pred_dat)
-deaths_sim.PI <- apply(deaths_sim, 2, PI)
-# superimpose sampling interval as dashed lines
-lines(pred_dat$F, deaths_sim.PI[1, ], lty = 2)
-lines(pred_dat$F, deaths_sim.PI[2, ], lty = 2)
-
-```
-
-What’s there left to say other than: “Look at that increased uncertainty of our model” at this point? Well, we can talk about the accuracy of our predictions. They still blow. The uncertainty of our model is nice and all, but with a predictive accuracy like this why would we trust the model?
-
-For now, let’s turn to the conceptual part of this exercise: “Why has the association diminished with the new model?” The question comes down to understanding what the gamma distribution does to our model. The gamma distribution allows for a death rate to be calculated for each outcome individually rather than one overall death rate for all hurricanes. These individual rates are sampled from a common distribution which is a function of the femininity of hurricane names. As a matter of fact, we can plot this:
-
-```{r, message=FALSE, cache = TRUE}
-post <- extract.samples(mH2)
-par(mfrow = c(1, 3))
-for (fem in -1:1) {
-  for (i in 1:1e2) {
-    curve(dgamma2(
-      x, # where to calculate density
-      exp(post$a[i] + post$bF[i] * fem), # linear model with inverse link applied
-      post$scale[i] # scale for gamma
-    ),
-    from = 0, to = 70, xlab = "mean deaths", ylab = "Density",
-    ylim = c(0, 0.19), col = col.alpha("black", 0.2),
-    add = ifelse(i == 1, FALSE, TRUE)
-    )
-  }
-  mtext(concat("femininity  =   ", fem))
-}
-```
-
-These are the gamma distributions samples from the posterior distribution of death rates when assuming same femininity of name for all of them at three different levels of femininity. Yes, a distribution sampled from another distribution. The above plots simply show the uncertainty of which gamma distribution to settle on.
-
-Since our model and gamma distributions are informed by a, bF, and the scale for the gamma distribution at the same time many combinations of a and bF are consistent with the data which results in a wider posterior distribution.
-
-Finally, let’s look at Paraeto-K values and potentially influential data again:
-
-```{r, message=FALSE, cache = TRUE}
-ggplot(as.data.frame(PSISk(mH2)), aes(x = PSISk(mH2))) +
-  stat_halfeye() +
-  theme_bw() +
-  labs(title = "Paraeto-K values", subtitle = "Values > 1 indicate highly influential data")
-```
-
-MUCH BETTER than before!
-
-
-/////////////////////////////////////////////////////////////////////////
+Donde también vemos que el mejor modelo es el de la binomial negativa.
 
 ## `r colorize("Inciso  **2.c**", subtitle=TRUE)`
 
