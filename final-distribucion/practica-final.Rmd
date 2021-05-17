@@ -284,7 +284,9 @@ probas_y_no_exitos
 ```
 
 
-
+```{r}
+predictive_interval(fit_1a,prob=0.89)
+```
 
 ```{r, message=FALSE, cache = TRUE}
 ggplot(probas_y_no_exitos, aes(x = rownames(probas_y_no_exitos), y = p_mean)) +
@@ -324,6 +326,8 @@ probas_y_no_exitos[,c("ne_li_0.055","ne_ls_0.945")] <- t(apply(X = aux, MARGIN =
 
 probas_y_no_exitos
 ```
+
+
 
 
 ```{r, message=FALSE, cache = TRUE}
@@ -612,15 +616,17 @@ g_2a_feminidad_muertes<-tabla_2a_fm %>%
   ylim(0,260)+
   geom_point()+
   geom_smooth(method = "lm")+
-  labs(title = "Feminidad vs muertes observadas")
+  labs(title = "Muertes vs Feminidad")
 
 #Gráfico Dispersión altura vs predictor 1: peso.centrado
 g_2a_feminidad.centrada_prediccion.muertes<-tabla_2a_fm %>% 
   ggplot(aes(x=feminidad.centrada,y=prediccion.muertes)) +
   ylim(0,260)+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  labs(title = "Fem.Centrada vs predicción muertes")
+  geom_point(colour="red")+
+  geom_jitter(data=tabla_2a_fm, # %>% #agregamos los datos de la muestra
+               aes(feminidad.centrada,muertes),
+               height = 0, width = 0.01, colour="black") +
+  labs(title = "Predicción vs Fem.cen")
 
 g_2a_feminidad_muertes+g_2a_feminidad.centrada_prediccion.muertes
 ```
@@ -782,10 +788,6 @@ loo_2b<-loo(fit_2b) #calcula: elpd_loo que corresponde a la log-densidad; p_loo:
 loo_2b #imprime resultados 
 ```
 
-```{r}
-plot(loo_2a)
-```
-
 
 ```{r}
 plot(loo_2b)
@@ -795,10 +797,7 @@ plot(loo_2b)
 plot(conditional_effects(fit_2b, effects = "feminidad.centrada"))
 ```
 
-```{r}
-plot(conditional_effects(fit_2a, effects = "feminidad.centrada"))
-```
-
+Demuestra que el modelo con sobre-dispersión ya no muestra un resultado positivo tan preciso entre feminidad y muerte, con un intervalo de 89% que se superpone cero.
 
 
 ```{r}
@@ -806,8 +805,30 @@ plot(fit_2b)
 ```
 
 ```{r}
-plot(fit_2a)
+tabla_2b_fm<-as.data.frame(cbind(huracanes,predict(fit_2b)[,1],predictive_interval(fit_2b,prob=0.89))) #,re_formula = NA
+tabla_2b_fm<-tabla_2b_fm[,-c(2,4:7)]
+colnames(tabla_2b_fm) <- c("nombre","muertes","feminidad","feminidad.centrada","prediccion.muertes","int_li_0.055","int_li_0.945")
+head(tabla_2b_fm)
 ```
+
+```{r}
+#Graficamos las predicciones de la posterior del modelo para las muertes (media y bandas del 89%) incorporando los datos observados
+g_2b<-tabla_2b_fm %>% #usamos las predicciones que obtuvimos
+  ggplot(aes(feminidad.centrada,muertes)) +
+  ylim(0,260)+ #graficamos feminidad.centrada vs muertes
+  geom_ribbon(aes(ymin=int_li_0.055,ymax=int_li_0.945),fill = "grey70",alpha=.3) + #bandas de predicción
+   geom_line(data=tabla_2b_fm, # %>% #agregamos los datos de la muestra filtrándolas con peso mayor a 32 
+               aes(feminidad.centrada,prediccion.muertes),
+               height = 0, width = 0.01, colour="red") +
+  geom_jitter(data=tabla_2b_fm, # %>% #agregamos los datos de la muestra
+               aes(feminidad.centrada,muertes),
+               height = 0, width = 0.01, colour="black") +
+  labs(title = "Predicciones I=89%") + 
+  labs(y = "prediccion.muertes")
+
+g_2a_feminidad.centrada_prediccion.muertes+g_2b
+```
+
 
 ```{r, message=FALSE, cache = TRUE}
 comparativo_diff_loo_2b<-loo_compare(loo_2a,loo_2b) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
@@ -1096,30 +1117,10 @@ dano_pred_m <- data.frame(female = 1, D = dano_seq)
 head(dano_pred_m)
 ```
 
-```{r}
-lambda_f <- link(fit_2c_fd_negbin, data = dano_pred_f)
-```
-
-```{r}
-lambda_m <- link(fit_2c_fd_negbin, data = dano_pred_m)
-```
-
-```{r}
-lambda_m.mu <- apply(lambda_m, 2, mean)
-lambda_m.PI <- apply(lambda_m, 2, PI)
-```
-
-```{r}
-lambda_f.mu <- apply(lambda_f, 2, mean)
-lambda_f.PI <- apply(lambda_f, 2, PI)
-```
 
 
 
 
-```{r}
-pred(fit_2c_fpd_negbin)
-```
 
 
 /////////////////////////////////////////////////////////////////////////
