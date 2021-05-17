@@ -717,10 +717,11 @@ tabla_2a_fm %>%
 Por último, calculamos el intervalo del 89% para utilizarlo como comparativo para el modelo que revisaremos en el siguiente inciso.
 
 ```{r}
-tabla_2a_fm<-as.data.frame(cbind(tabla_2a_fm,predictive_interval(fit_2b,prob=0.89)))
-colnames(tabla_2a_fm) <- c("nombre","muertes","feminidad","feminidad.centrada","prediccion.muertes","error.absoluto","diagnostico.psis","int_li_0.055","int_li_0.945")
-head(tabla_2a_fm)
+tabla_2a_fmi<-as.data.frame(cbind(tabla_2a_fm,predictive_interval(fit_2b,prob=0.89)))
+colnames(tabla_2a_fmi) <- c("nombre","muertes","feminidad","feminidad.centrada","prediccion.muertes","error.absoluto","diagnostico.psis","int_li_0.055","int_li_0.945")
+head(tabla_2a_fmi)
 ```
+
 
 ## `r colorize("Inciso  **2.b**", subtitle=TRUE)`
 
@@ -778,6 +779,7 @@ Por último, calculamos el intervalo del 89% para verificar que se superpone el 
 
 ```{r}
 tabla_2b_fm<-as.data.frame(cbind(huracanes,predict(fit_2b)[,1],predictive_interval(fit_2b,prob=0.89))) #,re_formula = NA
+tabla_2b_fm<-tabla_2b_fm[,-c(2,4:6,9)]
 colnames(tabla_2b_fm) <- c("nombre","muertes","feminidad","feminidad.centrada","prediccion.muertes","int_li_0.055","int_li_0.945")
 head(tabla_2b_fm)
 ```
@@ -785,12 +787,12 @@ Y generamos una gráfica comparativa con el modelo anterior (Poisson) y el actua
 
 ```{r}
 #Gráfico Dispersión altura vs predictor 1: peso.centrado
-g_2a_feminidad.centrada_prediccion.muertes<-tabla_2a_fm %>% 
+g_2a_feminidad.centrada_prediccion.muertesi<-tabla_2a_fmi %>% 
   ggplot(aes(x=feminidad.centrada,y=prediccion.muertes)) +
   ylim(0,260)+
   geom_point(colour="red")+
   geom_ribbon(aes(ymin=int_li_0.055,ymax=int_li_0.945),fill = "grey70",alpha=.3) + #bandas de predicción
-  geom_jitter(data=tabla_2a_fm, # %>% #agregamos los datos de la muestra
+  geom_jitter(data=tabla_2a_fmi, # %>% #agregamos los datos de la muestra
                aes(feminidad.centrada,muertes),
                height = 0, width = 0.01, colour="black") +
   labs(title = "Modelo Poisson")+
@@ -811,7 +813,7 @@ g_2b<-tabla_2b_fm %>% #usamos las predicciones que obtuvimos
   labs(y = "prediccion.muertes")+
   theme_classic()
 
-g_2a_feminidad.centrada_prediccion.muertes+g_2b
+g_2a_feminidad.centrada_prediccion.muertesi+g_2b
 ```
 
 Se observa cómo el modelo Binomial Negativo abarca más información de los datos derivado de 
@@ -847,19 +849,18 @@ huracanes con nombres masculinos y femeninos. ¿Son probables los coeficientes?
 
 ## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
 
+
 ```{r}
-feminidad.std<-as.data.frame(scale(huracanes$femininity,scale = TRUE)) #centramos feminidad alrededor de su media
-colnames(feminidad.std)<-c("feminidad.std") #la nombramos feminidad.centrada
-dano.std<-as.data.frame(scale(huracanes$damage_norm,scale = TRUE)) #centramos feminidad alrededor de su media
-colnames(dano.std)<-c("dano.std") #la nombramos feminidad.centrada
-presion.std<-as.data.frame(scale(huracanes$min_pressure,scale=TRUE)) #centramos feminidad alrededor de su media
-colnames(presion.std)<-c("presion.std") #la nombramos feminidad.centrada
-huracanes<-cbind(huracanes,feminidad.std,dano.std,presion.std) #integramos las variables en menores.edad
+feminidad.std<-as.data.frame(scale(huracanes$femininity,scale = TRUE)) #estandarizamos feminidad
+colnames(feminidad.std)<-c("feminidad.std") #la nombramos feminidad.std
+dano.std<-as.data.frame(scale(huracanes$damage_norm,scale = TRUE)) #estandarizamoss feminidad
+colnames(dano.std)<-c("dano.std") #la nombramos dano.std
+presion.std<-as.data.frame(scale(huracanes$min_pressure,scale=TRUE)) 
+colnames(presion.std)<-c("presion.std") 
+huracanes<-cbind(huracanes,feminidad.std,dano.std,presion.std) #integramos las variables en huracanes
 
 head(huracanes) #imprimimos las primeras observaciones
 ```
-
-
 
 ```{r}
 fit_2c_fd_negbin<-brm(data=huracanes,
@@ -872,6 +873,7 @@ fit_2c_fd_negbin<-brm(data=huracanes,
 
 summary(fit_2c_fd_negbin, digits = 2)
 ```
+
 
 ```{r}
 loo_2c_fd_negbin<-loo(fit_2c_fd_negbin) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
@@ -993,7 +995,6 @@ comparativo_diff_loo_2c  #imprime comparativo de modelos
 
 De lo anterior, concluimos que la capacidad predictiva de los modelos con polinomios de mayor grado (4-6) no tiene una diferencia lo suficientemente fuerte y por tanto, escogemos como el mejor modelo como fit_2c_fd_negbin que incorpora como predictores a la feminidad.std y dano.std por el principio de parsimonia.
 
-
 ```{r}
 dano_seq <- seq(from = -1, to = 5.5, length.out = 1e2) # Secuencia para daños
 # 'masculine' storms
@@ -1008,8 +1009,124 @@ head(dano_pred_m)
 ```
 
 
+---------------------Dorely-----------------
+
+generar predicciones que contrasten los huracanes con nombres masculinos y femeninos. 
+
+```{r}
+head(huracanes)
+```
+```{r}
+tabla_2c<-as.data.frame(cbind(huracanes,predict(fit_2c_fpd_negbin)[,1],predict(fit_2c_fd_negbin)[,1],predict(fit_2c_fp_negbin)[,1])) #,re_formula = NA
+tabla_2c<-tabla_2c[,-c(2,4:6,9)]
+colnames(tabla_2c) <- c("nombre","muertes","genero","feminidad","feminidad.std","dano.std","presion.std","prediccion.muertes_fpd_negbin","prediccion.muertes_fd_negbin","prediccion.muertes_fp_negbin")
+head(tabla_2c)
+```
+
+```{r}
+#Gráfico Dispersión muertes vs feminidad agregando género como factor 
+g_2c_feminidad_muertes_genero<-tabla_2c %>% 
+  ggplot(aes(x=feminidad,y=muertes,color=factor(genero))) +
+  ylim(0,260)+
+  geom_point()+
+  labs(title = "Muertes vs Feminidad")+
+  geom_vline(xintercept=5, linetype="dashed", #línea para diferenciar visualmente los dos grupos
+                color = "gray")+
+  theme_classic()
+g_2c_feminidad_muertes_genero
+```
 
 
+
+```{r}
+#Gráfico Dispersión muertes vs predictor: feminidad
+g_2c_feminidad_muertes_genero<-tabla_2c %>% 
+  ggplot(aes(x=feminidad,y=muertes,color=factor(genero))) +
+  theme(legend.position="bottom")+
+  ylim(0,260)+
+  geom_point()+
+  labs(title = "Muertes vs Feminidad")+ 
+  theme_classic()
+
+
+#Gráfico Dispersión altura vs predictor 1: peso.centrado
+g_2c_feminidad.std_prediccion.muertes_fpd_negbin<-tabla_2c %>% 
+  ggplot(aes(x=feminidad.std,y=prediccion.muertes_fpd_negbin,color=factor(genero))) +
+  theme(legend.position="bottom")+
+  ylim(0,260)+
+  geom_jitter(data=tabla_2c, # %>% #agregamos los datos de la muestra
+               aes(feminidad.std,prediccion.muertes_fpd_negbin),
+               height = 0, width = 0.01) +
+  labs(title = "Pred muertes vs Fem.std")+
+  theme_classic()
+
+g_2c_feminidad_muertes_genero+g_2c_feminidad.std_prediccion.muertes_fpd_negbin
+```
+
+AQUI NO SÉ SI HAY QUE HACER TODAS LAS GRÁFICAS O REVISAR EL ERROR ABSOLUTO PROMERIO CON EL GÉNERO PARA CONCLUIR O SÓLO EL GRÁFICO.
+
+
+Ahora responderemos a la pregunta *¿Son probables los coeficientes?*
+
+
+```{r}
+#guardamos en un data frame las simulaciones de los coeficientes de los modelos
+simulacion_coeficientes_2c_fd_negbin <- as.data.frame(posterior_samples(fit_2c_fd_negbin)[,1:4]) # Fijas semilla (obtiene 4000)
+simulacion_coeficientes_2c_fpd_negbin <- as.data.frame(posterior_samples(fit_2c_fpd_negbin)[,1:4]) # Fijas semilla (obtiene 4000)
+```
+
+
+¿Cuál es la probabilidad de que el coeficiente b_feminidad.std sea positivo en el modelo 2c_fd_negbin?
+
+```{r}
+prob_pos_feminidad.std_2c_fd_negbin<-nrow(simulacion_coeficientes_2c_fd_negbin[simulacion_coeficientes_2c_fd_negbin$b_feminidad.std>=0, ]) /nrow(simulacion_coeficientes_2c_fd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_feminidad.std_2c_fd_negbin,2)
+```
+
+¿Cuál es la probabilidad de que el coeficiente b_dano.std sea positivo en el modelo 2c_fd_negbin?
+
+```{r}
+prob_pos_b_dano.std_2c_fd_negbin<-nrow(simulacion_coeficientes_2c_fd_negbin[simulacion_coeficientes_2c_fd_negbin$b_dano.std>=0, ]) /nrow(simulacion_coeficientes_2c_fd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_b_dano.std_2c_fd_negbin,2)
+```
+
+¿Cuál es la probabilidad de que el coeficiente b_feminidad.std:dano.std sea positivo en el modelo 2c_fd_negbin?
+
+```{r}
+prob_pos_b_feminidad.stddano.std_2c_fd_negbin<-nrow(simulacion_coeficientes_2c_fd_negbin[simulacion_coeficientes_2c_fd_negbin$`b_feminidad.std:dano.std`>=0, ]) /nrow(simulacion_coeficientes_2c_fd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_b_feminidad.stddano.std_2c_fd_negbin,2)
+```
+
+¿Cuál es la probabilidad de que el coeficiente intercepto sea positivo en el modelo 2c_fd_negbin?
+
+```{r}
+prob_pos_b_intercept_2c_fd_negbin<-nrow(simulacion_coeficientes_2c_fd_negbin[simulacion_coeficientes_2c_fd_negbin$b_Intercept>=0, ]) /nrow(simulacion_coeficientes_2c_fd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_b_intercept_2c_fd_negbin,2)
+```
+
+
+
+
+
+¿Cuál es la probabilidad de que el coeficiente b_feminidad.std sea positivo en el modelo 2c_fpd_negbin?
+
+```{r}
+prob_pos_feminidad.std_2c_fpd_negbin<-nrow(simulacion_coeficientes_2c_fpd_negbin[simulacion_coeficientes_2c_fpd_negbin$b_feminidad.std>=0, ]) /nrow(simulacion_coeficientes_2c_fpd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_feminidad.std_2c_fpd_negbin,2)
+```
+
+¿Cuál es la probabilidad de que el coeficiente b_dano.std sea positivo en el modelo 2c_fpd_negbin?
+
+```{r}
+prob_pos_dano.std_2c_fpd_negbin<-nrow(simulacion_coeficientes_2c_fpd_negbin[simulacion_coeficientes_2c_fpd_negbin$b_dano.std>=0, ]) /nrow(simulacion_coeficientes_2c_fpd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_dano.std_2c_fpd_negbin,2)
+```
+
+HAY QUE HACER LO MISMO CON EL RESTO DE LOS COEFS
+
+
+
+---------------------Dorely-----------------
 
 
 
@@ -1124,6 +1241,9 @@ So why is the interaction effect so strong? Probably because of those 3-4 highly
 
 ////////////////////////////////////////////////////////////////////////
 
+
+
+
 ## `r colorize("Inciso  **2.d**", subtitle=TRUE)`
 
 En el artículo original sobre huracanes, se utilizó directamente el daño por
@@ -1136,6 +1256,106 @@ predictor. Usando la mejor estructura de modelo del inciso anterior, compara un
 modelo que usa `log(damage_norm)` a un modelo que usa `damage_norm`
 directamente. Compara la capacidad predictiva, así como sus predicciones
 implícitas. ¿Qué es lo que concluyes?
+
+```{r}
+fit_2d_fd_negbin_log<-brm(data=huracanes,
+            family=negbinomial,
+             deaths~ 1 + feminidad.std +log(damage_norm)+feminidad.std*log(damage_norm),
+            #+feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2d_fd_negbin_log")
+
+summary(fit_2d_fd_negbin_log, digits = 2)
+```
+
+
+```{r}
+loo_2d_fd_negbin_log<-loo(fit_2d_fd_negbin_log) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2d_fd_negbin_log  #imprime resultados
+```
+
+```{r}
+comparativo_loo_2d<-cbind(loo_2c_fd_negbin,loo_2d_fd_negbin_log) #guarda comparativo
+comparativo_loo_2d #imprime comparativo de modelos
+```
+
+```{r}
+comparativo_diff_loo_2d<-loo_compare(loo_2c_fd_negbin,loo_2d_fd_negbin_log) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
+comparativo_diff_loo_2d  #imprime comparativo de modelos
+```
+
+
+```{r}
+plot(loo_2d_fd_negbin_log)
+```
+
+```{r}
+plot(conditional_effects(fit_2d_fd_negbin_log, effects = "damage_norm"))
+```
+
+
+```{r}
+pp_check(fit_2c_fd_negbin, nsamples = 100, iterations = 30, check_range = FALSE, re_formula = NULL)
+pp_check(fit_2d_fd_negbin_log, nsamples = 100, iterations = 30, check_range = TRUE, re_formula = NULL)
+```
+
+```{r}
+tabla_2c_dm<-as.data.frame(cbind(huracanes,predict(fit_2c_fd_negbin)[,1])) #,re_formula = NA
+tabla_2c_dm<-tabla_2c_dm[,-c(2,4:5,9:11)]
+colnames(tabla_2c_dm) <- c("name","deaths","damage_norm","female","femininity", "prediccion.muertes")
+head(tabla_2c_dm)
+```
+
+```{r}
+tabla_2d_dmlog<-as.data.frame(cbind(huracanes,predict(fit_2d_fd_negbin_log)[,1])) #,re_formula = NA
+tabla_2d_dmlog<-tabla_2d_dmlog[,-c(2,4:5,9:11)]
+colnames(tabla_2d_dmlog) <- c("name","deaths","damage_norm","female","femininity", "prediccion.muertes")
+head(tabla_2d_dmlog)
+```
+
+
+```{r}
+#Gráfico Dispersión muertes vs predictor: logdamage_norm
+g_2c_damage_norm_muertes<-tabla_2c_dm %>% 
+  ggplot(aes(x=damage_norm,y=deaths)) +
+  ylim(0,260)+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(title = "Damage_norm vs muertes observadas")
+
+g_2c_damage_norm_muertes_pred<-tabla_2c_dm %>% 
+  ggplot(aes(x=damage_norm,y=prediccion.muertes)) +
+  ylim(0,260)+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(title = "damage_norm vs muertes predichas")
+
+g_2c_damage_norm_muertes+g_2c_damage_norm_muertes_pred
+```
+
+
+
+```{r}
+#Gráfico Dispersión muertes vs predictor: logdamage_norm
+g_2d_logdamage_norm_muertes<-tabla_2d_dmlog %>% 
+  ggplot(aes(x=damage_norm,y=deaths)) +
+  ylim(0,260)+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(title = "Damage_norm vs muertes observadas")
+
+g_2d_logdamage_norm_muertes_pred<-tabla_2c_dm %>% 
+  ggplot(aes(x=log(damage_norm),y=prediccion.muertes)) +
+  ylim(0,260)+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(title = "logdamage_norm vs muertes predichas")
+
+g_2d_logdamage_norm_muertes+g_2d_logdamage_norm_muertes_pred
+```
+
+
 
 ## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
 
@@ -1207,143 +1427,3 @@ shade(sqrt(lambda_f.PI), S2_seq, col = col.alpha("red", 0.2))
 Now this model fits the data much better! Still not perfect, but much better.
 
 /////////////////////////////////////////////////////////////////////////
-
-
-`r col_square("**3.** Inferencia Causal: experimentos aleatorizados")`
-
-Distribuciones muestrales bajo aleatorización: Utilice la covariable y el
-potencial de salida (*potential outcome*) de los datos en la tabla 18.1 del
-libro *Regresion and Other Stories*. Abajo viene una versión simplificada
-(aunque hacen falta un par más, incorporalas):
-
-```{r, warning=FALSE, message=FALSE, cache = TRUE}
-
-omega <- tibble(female = factor(rep(rep(c(1,0), each = 2), 2)), 
-       age        = rep(c(4,5,6,7), each = 2) * 10, 
-       treatment  = factor(rep(c(0,1), each = 4)), 
-       treatment_r= factor(c(0,1,0,1,0,1,0,1)),
-       pot_out_z0 = rep(c(140, 150, 160, 170), each = 2),
-       pot_out_z1 = rep(c(135, 140, 155, 160), each = 2),
-       outcome    = rep(c(140, 150, 155, 160), each = 2))
-
-omega %>%
-  kbl(digits=2, format.args = list(big.mark = ","))  %>%
-  kable_styling(bootstrap_options = "striped", full_width = F)
-
-```
-
-```{r, warning=FALSE, message=FALSE, cache = TRUE}
-lm(outcome ~ treatment_r, omega)
-```
-
-```{r, warning=FALSE, message=FALSE, cache = TRUE}
-x<-factor(c(0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1))
-y<-c(140,140,150,150,160,160,170,170,135,135,140,140,155,155,160,160)
-lm(y ~ x)
-```
-
-```{r, warning=FALSE, message=FALSE, cache = TRUE}
-efec<-function(){
-  x1<-sample(c(0,0,0,0,1,1,1,1),8)
-  x2<-(x1+1) %% 2
-  y1<-c(140,140,150,150,160,160,170,170)
-  y2<-c(135,135,140,140,155,155,160,160)
-  return((x2%*%y2 - x1%*%y1)/4)
-}
-mean(rerun(10000,efec()) %>% flatten_dbl())
-```
-
-
-como punto de partida para considerar distribuciones de aleatorización de cuatro
-diseños diferentes mediante la creación de simulaciones en `R`.
-
-Comenta sobre el sesgo relativo y la eficiencia para cada uno de los siguientes
-diseños:
-• Diseño completamente aleatorizado,
-• Diseño aleatorio usando bloques por los cuatro participantes mayores frente a
-los cuatro más jóvenes,
-• Diseño de pares combinados,
-
-utilizando cada una de las siguientes estimaciones:
-• Diferencia de medias,
-• Regresión del indicador de tratamiento y la edad,
-• Regresión del indicador de tratamiento, edad y sexo,
-• Regresión del indicador de tratamiento, edad, sexo e interacción tratamiento
-$\times$ sexo.
-
-
-`r col_square("**4.** Inferencia Causal y Modelos de Regresión: vacas")`
-
-*Aleatorización desordenada*: los datos de `vacas.txt` contiene datos de un
-experimento que se llevó a cabo con 50 vacas para estimar el efecto de un
-complemento alimenticio en 6 resultados relacionados con la cantidad de grasa
-láctea producida por cada vaca. Se consideraron cuatro dietas (tratamientos),
-correspondientes a diferentes niveles del complemento, y se registraron tres
-variables antes de la asignación del tratamiento: número de lactancia
-(temporadas de lactancia), edad y peso inicial de la vaca.
-
-Las vacas se asignaron inicialmente a tratamientos completamente al azar, y
-después se revisaron las distribuciones de las tres covariables para verificar
-el equilibrio a lo largo de los grupos de tratamiento. Se probaron varias
-aleatorizaciones, y la que produjo el "mejor" equilibrio con respecto a las tres
-covariables fue la que se escogió. El tratamiento depende sólo de las
-covariables completamente observadas y no de las no registradas como el aspecto
-físico de las vacas o los momentos en los que vacas entraron en el estudio. Esto
-es porque las decisiones de volver a aleatorizar no son explicados.
-Consideraremos diferentes estimaciones del efecto del complemento en la grasa
-láctea media diaria producida.
-
-## `r colorize("Inciso  **4.a**", subtitle=TRUE)`
-
-Considera la regresión massimple de la grasa láctea media diaria con el nivel
-de complemento. Calcula el efecto del tratamiento estimado (coeficiente de
-regresión) y el error estándar, y explica por qué este no es un análisis
-completamente apropiado dada la aleatorización utilizada.
-
-## `r colorize("Inciso  **4.b**", subtitle=TRUE)`
-
-Agrega más predictores al modelo. Explica el razonamiento para la elección de
-covariables en el modelo. Compare el efecto estimado del tratamiento con el
-resultado de (a).
-
-## `r colorize("Inciso  **4.c**", subtitle=TRUE)`
-
-Repite (**`r colorize("4. b", "#00614E")`**), esta vez considerando el nivel del complemento como un predictor
-categórico con cuatro niveles. Haga una gráfica que muestre la estimación (y el
-error estándar) del efecto del tratamiento en cada nivel, y también mostrando la
-inferencia del modelo ajustado en (**`r colorize("4. b", "#00614E")`**).
-
-
-```{r, warning=FALSE, message=FALSE, cache = TRUE}
-Vacas <- read_delim("vacas.txt", delim = " ") %>%
-  type.convert() %>%
-  as.data.frame()
-
-# CHECAR SI SE PUEDE EVITAR CREAR ATRIBUTOS Y/O SI ES NECESARIO ELMINARLOS
-attr(Vacas, 'problems') <- NULL
-attr(Vacas, 'spec') <- NULL
-Vacas<-as.tibble(Vacas)
-
-Vacas %>%
-  head() %>%
-  kbl(digits=2, format.args = list(big.mark = ","))  %>%
-  kable_styling(bootstrap_options = "striped", full_width = F)
-  # kable_material(c("striped"))
-```
-
-```{r, warning=FALSE, message=FALSE, cache = TRUE}
-descr(Vacas) %>%
-  kbl(digits=2, format.args = list(big.mark = ",")) %>%
-  kable_styling(bootstrap_options = "striped", full_width = F)
-```
-
-```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
-# Si se quisiera visualizar el summary corriendo solo este chunck hacerlo con:
-# print(dfSummary(Vacas, plain.ascii=FALSE, style="grid", valid.col=FALSE), method="render")
-
-# Con lo sisuientes parámetros (incluido la opción del chunk "results='asis'", puede
-# visualizarse el summary cuando se genera el html)
-dfSummary(Vacas, plain.ascii = FALSE, style = "grid", graph.magnif = 0.75, valid.col = TRUE, tmp.img.dir = "/tmp")
-```
-
-
