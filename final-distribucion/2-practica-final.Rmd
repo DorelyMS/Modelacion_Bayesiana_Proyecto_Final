@@ -1,0 +1,987 @@
+---
+title:
+  - "![](./Imagen_logo_ITAM.jpg){width=10in}"
+  - <center><h1><div class="green"> **PRÁCTICA FINAL METODOS BAYESIANOS** </div></h1><center>
+  - <center><h1><div class="green"> PRIMAVERA 2021 </div></h1><center>
+  - "![](./Imagen_espacio.jpg){width=10in}"
+author:
+  - <center><h1><div class="darkgreen"> **EQUIPO 08** </div></h1><center>
+  - <center> <font size="5"> Dorely Morales Santiago  178095 </font> <center>
+  - <center> <font size="5"> Rodrigo Suárez Segovia   191351 </font> <center>
+  - <center> <font size="5"> Zarazúa Cruz Guillermo   159396 </font> <center>
+date:
+  - "![](./Imagen_espacio.jpg){width=10in}"
+output:
+  html_document: default
+---
+
+<!-- Justificamos el texto -->
+<style>
+body {
+text-align: justify}
+</style>
+
+```{r, echo=FALSE}
+# Función para dar color al texto que se pasa como parámetro
+colorize <- function(texto, color1="#FFFFFF", subtitle=FALSE, color2='LightSeaGreen') {
+if (knitr::is_html_output()) {
+    if(subtitle==FALSE)
+      sprintf("<span style='color: %s;'>%s</span>", color1, texto)
+    else
+      sprintf("<br/><br/><mark style='color: %s; background-color: %s'>%s</mark><br/><br/>", color1, color2, texto)
+      # sprintf("<span style='background-color: %s;'>%s</span>", color2, texto ) # con <span> no reslata el texto
+  }
+}
+
+# Función para enmarcar texto en cuadro de color
+col_square <- function(texto, color1="#00614E", color2="#FFFFFF"){
+  if(knitr::is_html_output()){
+    sprintf("<br/><br/><div style='text-align: left; border: 10px solid %s; font-weight:normal; font-size: 35px; background-color: %s; color: %s;'> %s </div><br/><br/>",color1,color1,color2,texto)
+  }
+}
+
+```
+
+**Entrega:** 
+
+Enviar por correo electrónico una carpeta comprimida
+(`equipo-xx.zip`) que incluya datos y codigo de solución a mas tardar el 18 de
+Mayo antes de las 11:59pm (medianoche). El asunto deberá ser `[MB - 2021]
+Final Equipo XX`, donde  reemplazarás `XX` con el codigo de tu equipo. No se
+aceptarán entregas extemporáneas. Será mejor entregar un examen resuelto
+parcialmente, que no entregar nada. 
+
+**Instrucciones:**
+  
+* Tus respuestas deben ser claras y debes explicar los resultados, incluye
+también tus procedimientos/código de manera ordenada, y el código comentado.
+
+* Se evaluará la presentación de resultados (calidad de las gráficas, tablas,
+...).
+
+* Las sesión del Martes 11 de Mayo será destinada a responder dudas del
+examen. Para esto se reservará una media hora para dudas (dependerá de la agenda
+cuál será el momento mas oportuno para abrir el espacio). 
+
+* Se podrá usar el foro de discusión para realizar preguntas y afinar detalles 
+que no queden claros. 
+
+* No pueden compartir soluciones entre diferentes equipos.
+
+* Al entregar este examen afirmas que el trabajo se realizó sólo con tu
+compañeros de equipo. El material que utilizaste para apoyarte consistió de las
+notas en clase (pdfs en Canvas), el codigo fuente de las notas en el repositorio
+de Github.
+
+* Al entregar estás dando tu consentimiento para que bajo sospecha y suficiente
+evidencia de copia se anule tu evaluación.
+
+* La carpeta comprimida deberá incluir la resolución del examen también en
+formato `.html`. La evaluación será completamente sobre el `html` y el código
+fuente será utilizado para verificar detalles adicionales. Si el `html` no
+incluye alguna sección de la evaluación se tomará dicha sección como **no
+entregado**.
+
+**Ponderación:**
+
+El examen está compuesto por cuatro apartados cuyos pesos son los siguientes:  
+- Águilas    (15\%),  
+- Huracanes  (45\%),  
+- Omega-3    (15\%),  
+- Vacas      (25\%).  
+
+```{r setup, include=FALSE}
+library(tidymodels)
+library(tidyverse)
+library(cmdstanr)
+library(rstanarm)
+library(bayesplot)
+library(loo)
+library(patchwork)
+library(scales)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning=FALSE, 
+                      fig.align = 'center', fig.width = 5, fig.height=3, cache = TRUE)
+comma <- function(x) format(x, digits = 2, big.mark = ",")
+theme_set(theme_linedraw())
+
+SEED <- 2021 #proponemos una semilla para reproducibilidad
+set.seed(SEED) 
+```
+
+```{r}
+sin_lineas <- theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+sin_leyenda <- theme(legend.position = "none")
+sin_ejes <- theme(axis.ticks = element_blank(), 
+                  axis.text = element_blank())
+```
+
+
+```{r, warning=FALSE, message=FALSE, echo=T, results='hide'}
+# Carga de las librerias adicionales utilizadas por el Equipo 8
+
+# Librería:             Funciones utilizadas:
+# summarytools          dfSummary
+# latex2exp             TeX
+# MASS                  Base de datos eagles
+# kableExtra            Formato tablas (html)
+# tidybayes             
+# rethinking            Base de datos Hurricanes
+# brms                  modelos binomiales
+
+# Creamos una lista con las librerías, luego obtenemos las que no se tienen
+# instaladas, luego instalamos las que hagan falta
+lib_proy <- c('summarytools','latex2exp', 'MASS', 'kableExtra', 'tidybayes', 'brms', 'ggplot2')
+lib_proy_faltantes <- lib_proy[!(lib_proy %in% installed.packages()[ , "Package"])]
+if(length(lib_proy_faltantes)) install.packages(lib_proy_faltantes)
+
+# Para instalar la librería "rethinking" usar los siguientes comandos:
+# install.packages(c("coda","mvtnorm","devtools","loo","dagitty")) #CHECAR SI ESTE ES NECESARIO
+# devtools::install_github("rmcelreath/rethinking")
+
+# Cargamos todas las librerías
+lapply(c(lib_proy, 'rethinking'), require, character.only = TRUE)
+
+
+# Los modelos se guardarán en la carpeta fits, la cual debe existir donde está el este .Rmd
+# La siguiente línea checa si existe dicha carperta, y si no la crea.
+dir.create(file.path(getwd(), 'fits'), showWarnings = FALSE)
+```
+
+
+`r col_square("**2.** Extensiones de modelos de conteo: huracanes")`
+
+En 2014, se publicó un artículo titulado [*"Female hurricanes are deadlier than
+male hurricanes"*](https://www.pnas.org/content/111/24/8782). Como sugiere el
+título, el documento afirmó que los huracanes con nombres femeninos han causado
+una mayor pérdida de vidas, y la explicación que se da es que las personas
+inconscientemente califican a los huracanes femeninos como menos peligrosos y,
+por lo tanto, es menos probable que se necesite evacuar. Los estadísticos
+criticaron duramente el artículo después de su publicación. En esta sección,
+explorarás los datos completos utilizados en el artículo y considerarás la
+hipótesis que los huracanes con nombres femeninos son más letales. Carga los
+datos con:
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE, results='markup'}
+data(Hurricanes)
+
+Hurricanes %>%
+  head() %>%
+  kbl(digits=2, format.args = list(big.mark = ",")) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+descr(Hurricanes) %>%
+  kbl(digits=2, format.args = list(big.mark = ",")) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
+# Si se quisiera visualizar el summary corriendo solo este chunck hacerlo con:
+# print(dfSummary(Hurricanes, plain.ascii=FALSE, style="grid", valid.col=FALSE), method="render")
+
+# Con lo sisuientes parámetros (incluido la opción del chunk "results='asis'", puede
+# visualizarse el summary cuando se genera el html)
+dfSummary(Hurricanes, plain.ascii = FALSE, style = "grid", graph.magnif = 0.75, valid.col = FALSE, tmp.img.dir = "/tmp")
+```
+
+Familiarízate con las columnas inspeccionando la ayuda `?Hurricanes`. En este
+problema, te concentrarás en predecir muertes usando la feminidad de cada nombre
+del huracán. 
+
+## `r colorize("Inciso  **2.a**", subtitle=TRUE)`
+
+Ajustaremos e interpretaremos el modelo más simple posible, un
+modelo de Poisson de muertes utilizando la feminidad como predictor. 
+Compara el modelo a un modelo de muertes Poisson con sólo
+intercepto. ¿Qué tan fuerte es la asociación entre la feminidad del nombre y el
+número de muertes? ¿Qué tormentas ajustan bien con el modelo? ¿Qué tormentas son
+las que no son tan fáciles de predecir?
+
+## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
+
+Obtenemos la descripción de las variables a través de la ayuda `?Hurricanes`
+
+1. name : Nombre del Huracán
+2. year : Año del Huracán
+3. deaths : Número de muertes
+4. category : Severidad del fenómeno
+5. min_pressure : Presión mínima, un indicador de fuerza de la tormenta; entre más bajo, más fuerte
+6. damage_norm : Estimación Normalizada del daño en dólares
+7. female : Variable indicadora de si el nombre del huracán tiene género mujer (1) u hombre (0)
+8. femininity : feminidad sobre el nombre del huracán en escala de 1 a 11, de 
+1-11 scale from totally masculine (1) to totally feminine (11) for name. Average of 9 scores from 9 raters.
+
+Primero graficaremos el número de muertes vs nuestro predictor (feminidad) para observar la relación entre las variables
+
+```{r}
+# Guardamos el dataset en otra variable para agregar unas variables
+huracanes <- Hurricanes
+```
+
+```{r}
+#Gráfico Dispersión muertes vs predictor: feminidad
+g_2a_feminidad_muertes<-huracanes %>% 
+  ggplot(aes(x=femininity,y=deaths)) +
+  ylim(0,260)+
+  geom_point()+
+  labs(title = "Muertes vs Feminidad")+
+  geom_vline(xintercept=5, linetype="dashed", #línea para diferenciar visualmente los dos grupos
+                color = "gray")+
+  theme_classic()
+g_2a_feminidad_muertes
+```
+
+En el gráfica anterior, logramos apreciar 2 grupos relativamente separados, los cuales corresponden a nombres de huracanes con feminidad menor a 5 que tienen asociadas muertes menores a 100 y  el grupo con feminidad mayor a 5 el cual posee 4 nombres de huracanes con muertes mayores a 100.
+
+Ahora ajustamos un modelo de Poisson para el número de muertes a partir de la feminidad. Primero centramos la variable de feminidad alrededor de su media para poder dar una interpretación al intercepto.
+
+El punto de referencia, del score de feminidad promedio en los huracanes fue de:
+
+```{r}
+round(mean(huracanes$femininity),1)
+```
+
+Y agregamos la variable feminidad.centrada a nuestro dataset
+
+```{r}
+feminidad.centrada<-as.data.frame(scale(huracanes$femininity,scale = FALSE)) #centramos feminidad alrededor de su media
+colnames(feminidad.centrada)<-c("feminidad.centrada") #la nombramos feminidad.centrada
+huracanes<-cbind(huracanes,feminidad.centrada) #integramos las variables en huracanes
+
+head(huracanes) #imprimimos las primeras observaciones
+```
+
+Ahora ya podemos proceder a ajustar el modelo:
+
+```{r}
+fit_2a<-brm(data=huracanes,
+            family=poisson,
+            deaths~ 1 + feminidad.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2a")
+
+summary(fit_2a, digits = 2)
+```
+
+De lo anterior, encontramos que la feminidad.centrada tiene un efecto positivo sobre la predicción del número de muertes es decir, si el valor de la feminidad.centrada aumenta, la predicción del número de muertes aumenta.  
+
+A continuación, revisamos cuáles son las distribuciones previas que se generaron por default para los coeficientes:
+
+```{r}
+prior_summary(fit_2a)
+```
+
+
+
+```{r}
+plot(conditional_effects(fit_2a, effects = "feminidad.centrada"))
+```
+
+Luego ajustamos nuestro segundo modelo Poisson de muertes con sólo intercepto como predictor.
+
+```{r}
+fit_2a1<-brm(data=huracanes,
+            family=poisson,
+            deaths~ 1,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2a1")
+
+summary(fit_2a1, digits = 2)
+```
+
+De lo anterior, encontramos que el intercepto es de 3.03 sin la aportación de la variable feminidad.centrada. 
+
+```{r}
+prior_summary(fit_2a1)
+```
+
+Verificamos que el intercepto tiene el mismo default de la distribución previa.
+
+Ahora vamos a comparar ambos modelos en términos de la capacidad predictiva con ayuda de los criterios de información:
+
+```{r}
+loo_2a<-loo(fit_2a) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2a #imprime resultados 
+```
+Y vemos que el diagnóstico del modelo con la feminidad.centrada es muy malo, ya que coloca 4 observaciones en esta categoría. Dichas observaciones se pueden apreciar en la siguiente gráfica:
+
+```{r}
+plot(loo_2a)
+```
+
+
+```{r}
+loo_2a1<-loo(fit_2a1) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2a1 #imprime resultados 
+```
+Y vemos que el diagnóstico del modelo con sólo intercepto también es muy malo, ya que coloca 3 observaciones en esta categoría. Dichas observaciones se pueden apreciar en la siguiente gráfica:
+
+```{r}
+plot(loo_2a1)
+```
+
+Aunque ambos son muy malos, compararemos sus resultados como se indica en la instrucción.
+
+```{r}
+comparativo_loo_2a<-cbind(loo_2a,loo_2a1) #guarda comparativo
+comparativo_loo_2a
+```
+
+De lo anterior, vemos que la devianza de ambos modelos es cercana a 4,400 y dado que sus errores estándar sobre todas las observaciones son de aprox. 1,000 no es posible decidir cuál modelo es mejor. A continuación los compararemos en términos de la log-densidad (elpd_loo)
+
+```{r, message=FALSE}
+comparativo_diff_loo_2a<-loo_compare(loo_2a,loo_2a1) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
+comparativo_diff_loo_2a #imprime comparativo
+```
+
+A pesar de que coloca en primer lugar al modelo con feminidad.centrada, la diferencia y el error estándar del mismo es tan pequeño que no podemos concluir de forma contundente que el modelo con feminidad.centrada es superior en todos los casos al que incluye solamente el intercepto.
+
+Ahora, procederemos a contestar la pregunta de *¿Qué tan fuerte es la asociación entre la feminidad del nombre y el
+número de muertes?*
+
+Calculamos las predicciones del número de muertes con el modelo que incluye la feminidad.centrada:
+
+```{r}
+tabla_2a_fm<-as.data.frame(cbind(huracanes,predict(fit_2a)[,1])) #,re_formula = NA
+tabla_2a_fm<-tabla_2a_fm[,-c(2,4:7)]
+colnames(tabla_2a_fm) <- c("nombre","muertes","feminidad","feminidad.centrada","prediccion.muertes")
+head(tabla_2a_fm)
+```
+Y hacemos un gráfico de dispersión para analizar la asociación de las variables de manera gráfica:
+
+```{r}
+#Gráfico Dispersión muertes vs predictor: feminidad
+g_2a_feminidad_muertes<-tabla_2a_fm %>%
+  ggplot(aes(x=feminidad,y=muertes)) +
+  ylim(0,260)+
+  geom_point()+
+  labs(title = "Muertes vs Feminidad")+
+  theme_classic()
+
+#Gráfico Dispersión altura vs predictor 1: peso.centrado
+g_2a_feminidad.centrada_prediccion.muertes<-tabla_2a_fm %>% 
+  ggplot(aes(x=feminidad.centrada,y=prediccion.muertes)) +
+  ylim(0,260)+
+  geom_point(colour="red")+
+  geom_jitter(data=tabla_2a_fm, # %>% #agregamos los datos de la muestra
+               aes(feminidad.centrada,muertes),
+               height = 0, width = 0.01, colour="black") +
+  labs(title = "Pred muertes vs Fem.cen")+
+  theme_classic()
+
+g_2a_feminidad_muertes+g_2a_feminidad.centrada_prediccion.muertes
+```
+
+No se aprecia una asociación contundente entre la feminidad.centrada del nombre de un huracán con respecto a las muertes causadas por este tipo de fenómenos.
+
+Ahora pasamos a la pregunta *¿Qué tormentas ajustan bien con el modelo? *. Para lo cual, calculamos primero la diferencia en términos absolutos de las muertes observadas vs la predicción de muertes con el modelo que incluye la feminidad.centrada:
+
+```{r}
+tabla_2a_fm<-tabla_2a_fm %>% 
+  mutate(error.absoluto=abs(muertes-prediccion.muertes))
+head(tabla_2a_fm)
+```
+
+```{r}
+tabla_2a_fm<-tabla_2a_fm %>% 
+  mutate(diagnostico.psis=loo_2a$pointwise[,5])
+head(tabla_2a_fm)
+```
+A continuación, mostramos el top 5 de los nombres de los huracanes que  ajustan mejor al modelo en términos del error absoluto:
+
+```{r}
+tabla_2a_fm %>%
+  arrange(error.absoluto) %>%
+  head(5)
+```
+
+Las primeros 4 huracanes, tienen un nombre masculino (incluso su score de feminidad es bajo o cercano a 2).
+
+```{r}
+tabla_2a_fm %>%
+  arrange(diagnostico.psis) %>%
+  head(5)
+```
+
+Ahora responderemos *¿Qué tormentas son las que no son tan fáciles de predecir?*. Para lo cual, mostramos el top 5 de los nombres de los huracanes que peor ajuste presentan con el modelo en términos del error absoluto:
+
+```{r}
+tabla_2a_fm %>%
+  arrange(desc(error.absoluto)) %>%
+  head(5)
+```
+
+Las primeros 4 huracanes, tienen un nombre femenino (incluso su score de feminidad alto por encima del 8).
+
+```{r}
+tabla_2a_fm %>%
+  arrange(desc(diagnostico.psis)) %>%
+  head(5)
+```
+
+
+## `r colorize("Inciso  **2.b**", subtitle=TRUE)`
+
+Los conteos casi siempre están demasiado dispersos en relación con una
+distribución Poisson. Así que ajusta un Modelo gamma-Poisson (también conocido
+como binomial-negativo) para predecir muertes utilizando la feminidad. Demuestra
+que el modelo con sobre-dispersión ya no muestra un resultado positivo tan
+preciso entre feminidad y muerte, con un intervalo de 89% que se superpone cero.
+¿Puedes explicar por qué la asociación disminuyó?
+
+## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
+
+A continuación ajustamos el modelo explicativo Gamma-Poisson:
+
+```{r}
+fit_2b<-brm(data=huracanes,
+            family=negbinomial,
+            deaths~ 1 + feminidad.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2b")
+
+summary(fit_2b, digits = 2)
+```
+
+Identificamos que el coeficiente de la feminidad.centrada pierde precisión con respecto al modelo Poisson, derivado de que al 95% de confianza, el intervalo de credibilidad incluye al cero. Por lo que no contribuye positivamente con la predicción del número de muertes.
+
+Ahora mostramos las ditribuciones default para los coeficientes modelo anterior:
+
+```{r}
+prior_summary(fit_2b)
+```
+
+Y graficamos la distribución posterior de los coeficientes de nuestro modelo para contestar *Explicar por qué la asociación disminuyó*
+
+```{r}
+plot(fit_2b)
+```
+
+El Modelo gamma-Poisson (también conocido como binomial-negativo). Utiliza una distribución gamma que permite calcular una predicción de mortalidad para cada resultado individual de la feminidad.centrada en lugar de una predicción de mortalidad general como la Poisson. Al tener la gamma dos parámetros, implica que tiene información sobre la variabilidad de los datos, mientras que la Poisson tiene información de la media y la varianza en un sólo parámetro. Esto relaja la distribución Gamma y nos da una información posterior más amplia, pero le implica a los datos tener que dar más información sobre la media y la varianza. Al tener pocos datos (92) la asociación se complica utilizando la binomial negativa.
+
+A continuación mostramos el diagnóstico del modelo con loo:
+
+```{r}
+loo_2b<-loo(fit_2b) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2b #imprime resultados 
+```
+En este caso, el diagnóstico nos arroja que nuestro modelo es bueno. Lo cual lo podemos verificar en la siguiente gráfica:
+
+```{r}
+plot(loo_2b)
+```
+
+Por último, calculamos el intervalo del 89% para verificar que se superpone el cero así como las predicciones de muerte para este modelo.
+
+```{r}
+tabla_2b_fm<-as.data.frame(cbind(huracanes,predict(fit_2b)[,1],predictive_interval(fit_2b,prob=0.89))) #,re_formula = NA
+tabla_2b_fm<-tabla_2b_fm[,-c(2,4:6,9)]
+colnames(tabla_2b_fm) <- c("nombre","muertes","feminidad","feminidad.centrada","prediccion.muertes","int_li_0.055","int_li_0.945")
+head(tabla_2b_fm)
+```
+Y generamos una gráfica comparativa con el modelo anterior (Poisson) y el actual (Binomial-Negativa)
+
+Pero antes, calculamos el intervalo del 89% para utilizarlo del modelo anterior (Poisson) como comparativo para el modelo que revisaremos en el siguiente inciso.
+
+```{r}
+tabla_2a_fmi<-as.data.frame(cbind(tabla_2a_fm,predictive_interval(fit_2b,prob=0.89)))
+colnames(tabla_2a_fmi) <- c("nombre","muertes","feminidad","feminidad.centrada","prediccion.muertes","error.absoluto","diagnostico.psis","int_li_0.055","int_li_0.945")
+head(tabla_2a_fmi)
+```
+
+```{r}
+#Gráfico Dispersión altura vs predictor 1: peso.centrado
+g_2a_feminidad.centrada_prediccion.muertesi<-tabla_2a_fmi %>% 
+  ggplot(aes(x=feminidad.centrada,y=prediccion.muertes)) +
+  ylim(0,260)+
+  geom_point(colour="red")+
+  geom_ribbon(aes(ymin=int_li_0.055,ymax=int_li_0.945),fill = "grey70",alpha=.3) + #bandas de predicción
+  geom_jitter(data=tabla_2a_fmi, # %>% #agregamos los datos de la muestra
+               aes(feminidad.centrada,muertes),
+               height = 0, width = 0.01, colour="black") +
+  labs(title = "Modelo Poisson")+
+  theme_classic()
+
+#Graficamos las predicciones de la posterior del modelo para las muertes (media y bandas del 89%) incorporando los datos observados
+g_2b<-tabla_2b_fm %>% #usamos las predicciones que obtuvimos
+  ggplot(aes(feminidad.centrada,muertes)) +
+  ylim(0,260)+ #graficamos feminidad.centrada vs muertes
+  geom_ribbon(aes(ymin=int_li_0.055,ymax=int_li_0.945),fill = "grey70",alpha=.3) + #bandas de predicción
+   geom_jitter(data=tabla_2b_fm, # %>% #agregamos los datos de la muestra filtrándolas con peso mayor a 32 
+               aes(feminidad.centrada,prediccion.muertes),
+               height = 0, width = 0.01, colour="red") +
+  geom_jitter(data=tabla_2b_fm, # %>% #agregamos los datos de la muestra
+               aes(feminidad.centrada,muertes),
+               height = 0, width = 0.01, colour="black") +
+  labs(title = "Modelo Binomial Neg") + 
+  labs(y = "prediccion.muertes")+
+  theme_classic()
+
+g_2a_feminidad.centrada_prediccion.muertesi+g_2b
+```
+
+Se observa cómo el modelo Binomial Negativo abarca más información de los datos derivado de 
+
+Adicionalmente, se realizó una comparación de los modelos con LOO:
+
+```{r}
+comparativo_loo_2b<-cbind(loo_2a,loo_2b) #guarda comparativo
+comparativo_loo_2b
+```
+
+De esto, vemos que el modelo binomial negativo es claramente superior al modelo Poisson en términos de la devianza (looic) en el ajuste de los datos.
+
+Y por último, calculamos el comparativo de diferencia en términos de la log-densidad predictiva:
+
+```{r, message=FALSE, cache = TRUE}
+comparativo_diff_loo_2b<-loo_compare(loo_2a,loo_2b) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
+comparativo_diff_loo_2b #imprime comparativo
+```
+
+Donde también vemos que el mejor modelo es el de la binomial negativa.
+
+## `r colorize("Inciso  **2.c**", subtitle=TRUE)`
+
+En los datos, hay dos medidas del potencial de letalidad de un huracán:
+`damage_norm` y `min_pressure`. Consulta `?Hurricanes`. Hace algo de sentido
+imaginar que la feminidad de un nombre importa más cuando el huracán es en sí
+mismo es mortal. Esto implica una interacción entre la feminidad y posiblemente una
+o las dos `damage_norm` y `min_pressure`. Ajusta una serie de modelos evaluando
+estas interacciones. Interpreta y compara los modelos. Al interpretar las
+estimaciones, te puede ayudar a generar predicciones que contrasten los
+huracanes con nombres masculinos y femeninos. ¿Son probables los coeficientes?
+
+## `r colorize("Respuesta", subtitle=TRUE, color2="Salmon")`
+
+Estandarizamos los datos para ajustar estos modelos como sigue:
+```{r}
+feminidad.std<-as.data.frame(scale(huracanes$femininity,scale = TRUE)) #estandarizamos feminidad
+colnames(feminidad.std)<-c("feminidad.std") #la nombramos feminidad.std
+dano.std<-as.data.frame(scale(huracanes$damage_norm,scale = TRUE)) #estandarizamoss feminidad
+colnames(dano.std)<-c("dano.std") #la nombramos dano.std
+presion.std<-as.data.frame(scale(huracanes$min_pressure,scale=TRUE)) 
+colnames(presion.std)<-c("presion.std") 
+huracanes<-cbind(huracanes,feminidad.std,dano.std,presion.std) #integramos las variables en huracanes
+
+head(huracanes) #imprimimos las primeras observaciones
+```
+
+Se ajustan y comparan 3 modelos considerando lo siguiente:
+1. Interacción de feminidad con daño.
+2. Interacción de feminidad con presión
+3. Ambas interacciones.
+Para los tres casos se realiza considerando la familia Poisson y la familia de la Binomial negativa; por lo que tendremos 6 modelos a comparar.
+
+Modelo1: Interacción de feminidad con daño de la familia binomial negativa:
+```{r}
+fit_2c_fd_negbin<-brm(data=huracanes,
+            family=negbinomial,
+             deaths~ 1 + feminidad.std +dano.std+feminidad.std*dano.std,
+            # +feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2c_fd_negbin")
+
+summary(fit_2c_fd_negbin, digits = 2)
+```
+Observamos que la variable daño tiene una fuerte asociación con la variable respuesta del número de muertes. Esto acaba de erradicar el efecto de la feminidad del nombre del huracán. El parámetro para la variable de daño que se agregó en este modelo es increíblemente fuerte y positivo.
+
+```{r}
+loo_2c_fd_negbin<-loo(fit_2c_fd_negbin) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2c_fd_negbin  #imprime resultados
+```
+El diagnóstico del modelo que loo arrojó es que son buenos: "All Pareto k estimates are good (k < 0.5)." Adicionalmente si revisamos la distribución posterior de los parámetros, observamos que b_feminidad.std y la interacción con dano.std contienen al cero, mientras que por sí sola la variable dano.std muestra su relación positiva con el número de muertes por huracanes.
+
+```{r}
+plot(fit_2c_fd_negbin,pars=c("feminidad.std","dano.std"))
+```
+
+
+Modelo2: Interacción de feminidad con daño de la familia poisson:
+```{r}
+fit_2c_fd_poi<-brm(data=huracanes,
+            family=poisson,
+             deaths~ 1 + feminidad.std +dano.std+feminidad.std*dano.std,
+            # +feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2c_fd_poi")
+
+summary(fit_2c_fd_poi, digits = 2)
+```
+Observamos que la variable daño tiene una fuerte asociación con la variable respuesta del número de muertes. En la familia Poisson, también el parámetro para la variable de daño que se agregó en este modelo es increíblemente fuerte y positivo; sin embargo no erradica el efecto de la feminidad del nombre del huracán.
+
+```{r}
+loo_2c_fd_poi<-loo(fit_2c_fd_poi) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2c_fd_poi  #imprime resultados
+```
+El diagnóstico del modelo que loo arrojó es que no son buenos: "All Pareto k estimates are very bad (k > 1)." Por lo que este modelo bajo la familia Poisson no alcanza a modelar la variabilidad de los datos.
+
+Modelo3: Interacción de feminidad con presión de la familia binomial negativa:
+```{r}
+fit_2c_fp_negbin<-brm(data=huracanes,
+            family=negbinomial,
+             deaths~ 1 + feminidad.std +presion.std+feminidad.std*presion.std,
+            # +feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2c_fp_negbin")
+
+summary(fit_2c_fp_negbin, digits = 2)
+```
+
+Los resultados muestran que a medida que la presión mínima disminuye, se hace más fuerte el incremento en muertes por huracanes. Esto quiere decir que, cuanto menor es la presión en una tormenta, más severa es la tormenta y más personas mueren, lo que se refleja en el valor negativo de presion.std. Todavía se estima que la feminidad.std es positivo, aunque esta vez, el intervalo ligeramente se superpone a cero. Finalmente, el efecto de interacción de feminidad por presión mínima es positivo.
+
+```{r}
+loo_2c_fp_negbin<-loo(fit_2c_fp_negbin) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2c_fp_negbin  #imprime resultados
+```
+
+De igual manera que el modelo anterior, el diagnóstico del modelo que loo arrojó es que no son buenos: "All Pareto k estimates are very bad (k > 1). para 1 punto. Por lo que este modelo bajo la familia binomial negativa no alcanza a modelar dicho punto en la variabilidad de los datos.
+
+Modelo4: Interacción de feminidad con presión de la familia poisson:
+```{r}
+fit_2c_fp_poi<-brm(data=huracanes,
+            family=poisson,
+             deaths~ 1 + feminidad.std +presion.std+feminidad.std*presion.std,
+            # +feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2c_fp_poi")
+
+summary(fit_2c_fp_poi, digits = 2)
+```
+
+Los resultados son muy similares al modelo de la familia binomial negativa y muestran que a medida que la presión mínima disminuye, se hace más fuerte el incremento en muertes por huracanes. Asimismo, todavía se estima que la feminidad.std es positiva, y el intervalo no se superpone a cero. Finalmente, el efecto de interacción de feminidad por presión mínima es positivo.
+
+```{r}
+loo_2c_fp_poi<-loo(fit_2c_fp_poi) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2c_fp_poi  #imprime resultados
+```
+Lamnetablemente, se observa que el diagnóstico del modelo que loo arrojó es que no son buenos: "All Pareto k estimates are very bad (k > 1). para 5 puntos. Por lo que este modelo bajo la familia poisson no alcanza a modelar dichos puntos en la variabilidad de los datos. Si lo compararamos con el mismo modelo de la familia binomial negativa concluímos que cacha con más dificultad la variabilidad de los datos.
+
+Modelo5: Interacción de feminidad con presión e interacción de la feminidad con daño de la familia binomial negativa:
+```{r}
+fit_2c_fpd_negbin<-brm(data=huracanes,
+            family=negbinomial,
+             deaths~ 1 + feminidad.std+presion.std+dano.std+feminidad.std*presion.std+feminidad.std*dano.std,
+            # +feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2c_fpd_negbin")
+
+summary(fit_2c_fpd_negbin, digits = 2)
+```
+
+Al igual que el modelo 1, observamos que la variable daño tiene una fuerte asociación con la variable respuesta del número de muertes. Esto, nuevamente acaba de erradicar el efecto de la feminidad del nombre del huracán al superponerse en el valor cero. El parámetro de interacción de daño que se agregó en este modelo es increíblemente fuerte y positivo. Asimismo se puede observar que a medida que la presión mínima disminuye, se hace más fuerte el incremento en muertes por huracanes. 
+
+```{r}
+loo_2c_fpd_negbin<-loo(fit_2c_fpd_negbin) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2c_fpd_negbin  #imprime resultados
+```
+De igual manera que el modelo 3, el diagnóstico del modelo que loo arrojó es que no son buenos: "All Pareto k estimates are very bad (k > 1). para 1 punto. Por lo que este modelo bajo la familia binomial negativa no alcanza a modelar dicho punto en la variabilidad de los datos.
+
+Modelo6: Interacción de feminidad con presión e interacción de la feminidad con daño de la familia poisson:
+```{r}
+fit_2c_fpd_poi<-brm(data=huracanes,
+            family=poisson,
+             deaths~ 1 + feminidad.std+presion.std+dano.std+feminidad.std*presion.std+feminidad.std*dano.std,
+            # +feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2c_fpd_poi")
+
+summary(fit_2c_fpd_poi, digits = 2)
+```
+Finalmente observamos que la variable daño tiene una asociación con la variable respuesta del número de muertes. Pero la variable feminidad.std muestra este mismo efecto en la Poisson.
+En general, la ajustar modelos con la familia Poisson la variable feminidad gana poder predictivo mientras que al ajustar con la familia binomial negativa ocurre lo contrario. Adicional a esto, si agregamos la variable dano.std la variable feminidad.std queda erradicada por completo.
+
+```{r}
+loo_2c_fpd_poi<-loo(fit_2c_fpd_poi) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2c_fpd_poi  #imprime resultados
+```
+
+El diagnóstico del modelo que loo arrojó es que no son buenos: "All Pareto k estimates are very bad (k > 1). A continuación mostramos un resumen de los estadísticos de todos los modelos con loo:
+
+```{r}
+comparativo_loo_2c<-cbind(loo_2c_fd_negbin,loo_2c_fd_poi,loo_2c_fp_negbin,loo_2c_fp_poi,loo_2c_fpd_negbin,loo_2c_fpd_poi) #guarda comparativo
+comparativo_loo_2c #imprime comparativo de modelos
+```
+
+En términos de la devianza (looic) los modelos binomiales negativos tienen la mejor capacidad predictiva ya que tienen una menor devianza respecto a los modelos Poisson, cuya devianza está en términos de millares. El mejor modelo, fue el que incluye las 2 interacciones con la feminidad.std, que son feminidad.std:dano.std y feminidad.std:presion.std
+
+Además, notamos que el error estándar de looic es de 33 aproximadamente en estos mismos modelos, por lo que no podríamos dar una conclusión definitiva sobre cuál de estos 3 predictores es el mejor con este criterio.
+
+Para complementar el análisis, procederemos a obtener un comparativo en términos de la log-densidad predictiva con el método loo_compare().
+
+```{r}
+comparativo_diff_loo_2c<-loo_compare(loo_2c_fd_negbin,loo_2c_fd_poi,loo_2c_fp_negbin,loo_2c_fp_poi,loo_2c_fpd_negbin,loo_2c_fpd_poi) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
+comparativo_diff_loo_2c  #imprime comparativo de modelos
+```
+
+De lo anterior, concluimos que la capacidad predictiva del modelo fit_2c_fd_negbin y el modelo fit_2c_fpd_negbin no tiene una diferencia lo suficientemente fuerte y por tanto, escogemos como el mejor modelo como fit_2c_fd_negbin que incorpora como predictores a la feminidad.std y dano.std por el principio de parsimonia.
+
+A continuación se generan predicciones que contrasten los huracanes con nombres masculinos y femeninos. 
+
+```{r}
+head(huracanes)
+```
+
+```{r}
+tabla_2c<-as.data.frame(cbind(huracanes,predict(fit_2c_fpd_negbin)[,1],predict(fit_2c_fd_negbin)[,1],predict(fit_2c_fp_negbin)[,1])) #,re_formula = NA
+tabla_2c<-tabla_2c[,-c(2,4:6,9)]
+colnames(tabla_2c) <- c("nombre","muertes","genero","feminidad","feminidad.std","dano.std","presion.std","prediccion.muertes_fpd_negbin","prediccion.muertes_fd_negbin","prediccion.muertes_fp_negbin")
+head(tabla_2c)
+```
+
+Graficamos la relación entre muertes por huracán vs la feminidad en los nombres separado por genero, de acuerdo al índice female de los datos.
+
+```{r}
+#Gráfico Dispersión muertes vs feminidad agregando género como factor 
+g_2c_feminidad_muertes_genero<-tabla_2c %>% 
+  ggplot(aes(x=feminidad,y=muertes,color=factor(genero))) +
+  ylim(0,260)+
+  geom_point()+
+  labs(title = "Muertes vs Feminidad")+
+  geom_vline(xintercept=5, linetype="dashed", #línea para diferenciar visualmente los dos grupos
+                color = "gray")+
+  theme_classic()
+g_2c_feminidad_muertes_genero
+```
+
+
+
+```{r}
+#Gráfico Dispersión muertes vs predictor: feminidad
+g_2c_feminidad_muertes_genero_c<-tabla_2c %>% 
+  ggplot(aes(x=feminidad,y=muertes,color=factor(genero))) +
+  theme(legend.position="bottom")+
+  ylim(0,260)+
+  geom_point()+
+  labs(title = "Muertes vs Feminidad")+ 
+  theme_classic()
+
+
+#Gráfico Dispersión altura vs predictor 1: peso.centrado
+g_2c_feminidad.std_prediccion.muertes_fd_negbin<-tabla_2c %>% 
+  ggplot(aes(x=feminidad.std,y=prediccion.muertes_fd_negbin,color=factor(genero))) +
+  theme(legend.position="bottom")+
+  ylim(0,260)+
+  geom_jitter(data=tabla_2c, # %>% #agregamos los datos de la muestra
+               aes(feminidad.std,prediccion.muertes_fd_negbin),
+               height = 0, width = 0.01) +
+  labs(title = "Pred muertes vs Fem.std")+
+  theme_classic()
+
+g_2c_feminidad_muertes_genero_c+g_2c_feminidad.std_prediccion.muertes_fd_negbin
+```
+
+Podemos ver cómo nuestro modelo hace menos distinción entre huracanes masculinos y femeninos en general en este punto. La norma de daño se escala multiplicativamente y aunque el modelo ajusta lo mejor posible, aún es difícil explicar la relación. Probablemente debido a esas 3-4 huracanes con nombres femeninos que son altamente influyentes en la esquina derecha del gráfico, implican mas bien, que las huracanes femeninas son especialmente mortales cuando son dañinos para empezar.
+
+Ahora responderemos a la pregunta *¿Son probables los coeficientes?*
+
+De acuerdo a la sesión de dudas de la clase, éste problema se puede entender como qué tan probable es que el coeficiente sea positivo cuando dio positivo y de manera inversa que tan probable es que el coeficiente sea negativo cuando dio negativo. Esto hace pensar que aquellos coeficientes cuya probabilidad es 1 ocurre cuando la desviación estandar de los coeficientes no pasa por el cero para ningún caso. Lo mismo ocurre en el caso cuando la probabilidad es cero.
+
+Por tanto, mostraremos los resultados, como sigue:
+```{r}
+#guardamos en un data frame las simulaciones de los coeficientes de los modelos
+simulacion_coeficientes_2c_fd_negbin <- as.data.frame(posterior_samples(fit_2c_fd_negbin)[,1:4]) # Fijas semilla (obtiene 4000)
+simulacion_coeficientes_2c_fpd_negbin <- as.data.frame(posterior_samples(fit_2c_fpd_negbin)[,1:4]) # Fijas semilla (obtiene 4000)
+```
+
+
+¿Cuál es la probabilidad de que el coeficiente b_feminidad.std sea positivo en el modelo 2c_fd_negbin?
+```{r}
+prob_pos_feminidad.std_2c_fd_negbin<-nrow(simulacion_coeficientes_2c_fd_negbin[simulacion_coeficientes_2c_fd_negbin$b_feminidad.std>=0, ]) /nrow(simulacion_coeficientes_2c_fd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_feminidad.std_2c_fd_negbin,2)
+```
+
+¿Cuál es la probabilidad de que el coeficiente b_dano.std sea positivo en el modelo 2c_fd_negbin?
+
+```{r}
+prob_pos_b_dano.std_2c_fd_negbin<-nrow(simulacion_coeficientes_2c_fd_negbin[simulacion_coeficientes_2c_fd_negbin$b_dano.std>=0, ]) /nrow(simulacion_coeficientes_2c_fd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_b_dano.std_2c_fd_negbin,2)
+```
+
+¿Cuál es la probabilidad de que el coeficiente b_feminidad.std:dano.std sea positivo en el modelo 2c_fd_negbin?
+
+```{r}
+prob_pos_b_feminidad.stddano.std_2c_fd_negbin<-nrow(simulacion_coeficientes_2c_fd_negbin[simulacion_coeficientes_2c_fd_negbin$`b_feminidad.std:dano.std`>=0, ]) /nrow(simulacion_coeficientes_2c_fd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_b_feminidad.stddano.std_2c_fd_negbin,2)
+```
+
+¿Cuál es la probabilidad de que el coeficiente intercepto sea positivo en el modelo 2c_fd_negbin?
+
+```{r}
+prob_pos_b_intercept_2c_fd_negbin<-nrow(simulacion_coeficientes_2c_fd_negbin[simulacion_coeficientes_2c_fd_negbin$b_Intercept>=0, ]) /nrow(simulacion_coeficientes_2c_fd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_b_intercept_2c_fd_negbin,2)
+```
+
+
+
+Ahora probamos con el segundo mejor modelo de todos los anteriores, de acuerdo a los criterios de loo:
+
+¿Cuál es la probabilidad de que el coeficiente b_feminidad.std sea positivo en el modelo 2c_fpd_negbin?
+```{r}
+prob_pos_feminidad.std_2c_fpd_negbin<-nrow(simulacion_coeficientes_2c_fpd_negbin[simulacion_coeficientes_2c_fpd_negbin$b_feminidad.std>=0, ]) /nrow(simulacion_coeficientes_2c_fpd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_feminidad.std_2c_fpd_negbin,2)
+```
+
+¿Cuál es la probabilidad de que el coeficiente b_dano.std sea positivo en el modelo 2c_fpd_negbin?
+```{r}
+prob_pos_dano.std_2c_fpd_negbin<-nrow(simulacion_coeficientes_2c_fpd_negbin[simulacion_coeficientes_2c_fpd_negbin$b_dano.std>=0, ]) /nrow(simulacion_coeficientes_2c_fpd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_dano.std_2c_fpd_negbin,2)
+```
+
+¿Cuál es la probabilidad de que el coeficiente presion.std sea positivo en el modelo 2c_fpd_negbin?
+```{r}
+prob_pos_presion.std_2c_fpd_negbin<-nrow(simulacion_coeficientes_2c_fpd_negbin[simulacion_coeficientes_2c_fpd_negbin$b_presion.std>=0, ]) /nrow(simulacion_coeficientes_2c_fpd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_presion.std_2c_fpd_negbin,2)
+```
+
+
+¿Cuál es la probabilidad de que el coeficiente b_feminidad.std:dano.std sea positivo en el modelo 2c_fpd_negbin?
+
+```{r}
+prob_pos_b_feminidad.stddano.std_2c_fpd_negbin<-nrow(simulacion_coeficientes_2c_fpd_negbin[simulacion_coeficientes_2c_fpd_negbin$`b_feminidad.std:dano.std`>=0, ]) /nrow(simulacion_coeficientes_2c_fpd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_b_feminidad.stddano.std_2c_fpd_negbin,2)
+```
+
+
+¿Cuál es la probabilidad de que el coeficiente b_feminidad.std:presion.std sea positivo en el modelo 2c_fpd_negbin?
+```{r}
+prob_pos_b_feminidad.stdpresion.std_2c_fpd_negbin<-nrow(simulacion_coeficientes_2c_fpd_negbin[simulacion_coeficientes_2c_fpd_negbin$`b_feminidad.std:presion.std`>=0, ]) /nrow(simulacion_coeficientes_2c_fpd_negbin) # número de simulaciones con coef. positivo / número de simulaciones (4000)
+round(prob_pos_b_feminidad.stdpresion.std_2c_fpd_negbin,2)
+```
+
+Con esto, se calculan las probabilidades de los coeficientes de los dos mejores modelos y se finaliza el ejercicio.
+
+
+## `r colorize("Inciso  **2.d**", subtitle=TRUE)`
+
+En el artículo original sobre huracanes, se utilizó directamente el daño por
+tormenta (`damage_norm`). Esta suposición implica que la mortalidad aumenta
+exponencialmente con aumento lineal en la fuerza de la tormenta. Esto debido a
+que en regresión Poisson usamos un enlace logarítmico. Entonces, vale la pena
+explorar una hipótesis alternativa: que el logaritmo de la fuerza de la tormenta
+es lo que importa. Explora esto usando el logaritmo de `damage_norm` como un
+predictor. Usando la mejor estructura de modelo del inciso anterior, compara un
+modelo que usa `log(damage_norm)` a un modelo que usa `damage_norm`
+directamente. Compara la capacidad predictiva, así como sus predicciones
+implícitas. ¿Qué es lo que concluyes?
+
+
+Ajustamos un modelo como se indica aplicando directamente el logaritmo de la variable damage_norm usando la estructura del mejor modelo del inciso c anterior como se observa a continuación:
+```{r}
+fit_2d_fd_negbin_log<-brm(data=huracanes,
+            family=negbinomial,
+             deaths~ 1 + feminidad.std +log(damage_norm)+feminidad.std*log(damage_norm),
+            #+feminidad.centrada*dano.centrada,
+            seed=SEED,
+            sample_prior = T,
+            file="fits/huracanes.fit2d_fd_negbin_log")
+
+summary(fit_2d_fd_negbin_log, digits = 2)
+```
+
+De este modelo, observamos nuevamente que la variable daño tiene una fuerte asociación con la variable respuesta del número de muertes. El parámetro para la variable de log(daño) que se agregó en este modelo es muy fuerte y positivo. Podemos observar que tanto la variable feminidad.std como la interacción con el logdamage_norm se interponen al cero.
+
+```{r}
+loo_2d_fd_negbin_log<-loo(fit_2d_fd_negbin_log) #calcula: elpd_loo que corresponde a la log-densidad; p_loo: el número efectivo de parámetros; looic: la devianza del modelo así como suss errores estándar (SE) variando sobre todas las observaciones con validación cruzada
+loo_2d_fd_negbin_log  #imprime resultados
+```
+El diagnóstico del modelo que loo arrojó es que son buenos: "All Pareto k estimates are good (k < 0.5).". Por si sola la variable logdamage_norm muestra su relación positiva con el número de muertes por huracanes. Al ser el daño número positivo de "dimensiones grandes" en comparación con la escala del número de muertes genera una ventaja realizar una transformación que ayuda a disminuir la escala de aquellos valores grandes, siendo mucho más fácil de modelar linealmente.
+
+```{r}
+comparativo_loo_2d<-cbind(loo_2c_fd_negbin,loo_2d_fd_negbin_log) #guarda comparativo
+comparativo_loo_2d #imprime comparativo de modelos
+```
+En términos de la devianza (looic) el mejor modelo debido a su capacidad predictiva fue el que incluye la transformación logaritmica de la escala de el daño por huracanes reportando 630, menor a los 671 del mejor modelo del inciso anterior.
+
+```{r}
+comparativo_diff_loo_2d<-loo_compare(loo_2c_fd_negbin,loo_2d_fd_negbin_log) #calcula comparativo de diferencia en términos de la log-densidad predictiva y un error estándar sobre esta diferencia (se_diff). Ordenando los modelos del mejor al peor
+comparativo_diff_loo_2d  #imprime comparativo de modelos
+```
+
+
+```{r}
+plot(loo_2d_fd_negbin_log)
+```
+
+De lo anterior, concluimos que la capacidad predictiva del modelo fit_2d_fd_negbin_log con respecto al modelo fit_2c_fpd_negbin del inciso anterior tiene una diferencia lo suficientemente fuerte y por tanto, escogemos como el mejor modelo como fit_2d_fd_negbin_log que incorpora como predictores al logaritmo de la variable damage_norm
+
+```{r}
+plot(conditional_effects(fit_2d_fd_negbin_log, effects = "damage_norm"))
+```
+
+Ahora gráficamente, observamos los efectos condicionales del predictor logaritmo de damage_norm, incluidos los efectos de asociación con el número de muertes.
+
+```{r}
+pp_check(fit_2c_fd_negbin, nsamples = 100, iterations = 30, check_range = FALSE, re_formula = NULL)
+pp_check(fit_2d_fd_negbin_log, nsamples = 100, iterations = 30, check_range = TRUE, re_formula = NULL)
+```
+
+
+
+```{r}
+tabla_2c_dm<-as.data.frame(cbind(huracanes,predict(fit_2c_fd_negbin)[,1])) #,re_formula = NA
+tabla_2c_dm<-tabla_2c_dm[,-c(2,4:5,9:11)]
+colnames(tabla_2c_dm) <- c("name","deaths","damage_norm","female","femininity", "prediccion.muertes")
+head(tabla_2c_dm)
+```
+
+```{r}
+tabla_2d_dmlog<-as.data.frame(cbind(huracanes,predict(fit_2d_fd_negbin_log)[,1])) #,re_formula = NA
+tabla_2d_dmlog<-tabla_2d_dmlog[,-c(2,4:5,9:11)]
+colnames(tabla_2d_dmlog) <- c("name","deaths","damage_norm","female","femininity", "prediccion.muertes")
+head(tabla_2d_dmlog)
+```
+
+
+```{r}
+#Gráfico Dispersión muertes vs predictor: logdamage_norm
+g_2c_damage_norm_muertes<-tabla_2c_dm %>% 
+  ggplot(aes(x=damage_norm,y=deaths)) +
+  ylim(0,260)+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(title = "Damage_norm vs muertes observadas")
+
+g_2c_damage_norm_muertes_pred<-tabla_2c_dm %>% 
+  ggplot(aes(x=damage_norm,y=prediccion.muertes)) +
+  ylim(0,2)+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(title = "damage_norm vs muertes predichas")
+
+g_2c_damage_norm_muertes+g_2c_damage_norm_muertes_pred
+```
+
+
+
+```{r}
+#Gráfico Dispersión muertes vs predictor: logdamage_norm
+g_2d_logdamage_norm_muertes<-tabla_2d_dmlog %>% 
+  ggplot(aes(x=log(damage_norm),y=deaths)) +
+  ylim(0,260)+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(title = "Damage_norm vs muertes observadas")
+
+g_2d_logdamage_norm_muertes_pred<-tabla_2c_dm %>% 
+  ggplot(aes(x=damage_norm,y=sqrt(prediccion.muertes))) +
+  ylim(0,3)+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  labs(title = "logdamage_norm vs muertes predichas")
+
+g_2d_logdamage_norm_muertes+g_2d_logdamage_norm_muertes_pred
+```
+
+Se concluye que,
