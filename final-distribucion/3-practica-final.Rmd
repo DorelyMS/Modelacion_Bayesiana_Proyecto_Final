@@ -165,7 +165,7 @@ potencial de salida (*potential outcome*) de los datos en la tabla 18.1 del
 libro *Regresion and Other Stories*. Abajo viene una versión simplificada
 (aunque hacen falta un par más, incorpóralas):
 
-La siguiente tabla fue tomada a partir de las tablas 18.1 y 18.2 del capítulo 18
+La siguiente tabla fue tomada a partir de las tablas 18.1 y 18.2 del capítulo 18 de Regresion and Other Stories:
 
 ```{r, warning=FALSE, message=FALSE, cache = TRUE}
 omega <- tibble(female  = factor(rep(rep(c(1,0), each = 2), 2)), 
@@ -187,7 +187,7 @@ Comenta sobre el sesgo relativo es decir, suponiendo omnisciencia, qué tanto va
 
 * Diseño completamente aleatorizado,
 * Diseño aleatorio usando bloques por los cuatro participantes mayores frente a los cuatro más jóvenes,
-* Diseño de pares combinados (agrupando por los gemelos son los que comparten la primer letra de su nombre),
+* Diseño de pares combinados (agrupando por los gemelos que son los que comparten la primer letra de su nombre),
 
 Utilizando cada una de las siguientes estimaciones:
 
@@ -196,8 +196,7 @@ Utilizando cada una de las siguientes estimaciones:
 * Regresión del indicador de tratamiento, edad y sexo (los datos indican 1 si es mujer, 0 si es hombre),
 * Regresión del indicador de tratamiento, edad, sexo e interacción tratamiento $\times$ sexo.
 
-Como se mencionó anterioremente, la tabla de arriba se complementó con los "potential outcomes" reportados en la figura 18.2 de "Regresion and Other Stories" (pag 342), donde pot_out_z0 corresponde al resultado observado si no se hubiera tomado el tratamiento y pot_out_z1 al resultado observado si 
-se hubiera tomado el tratamiento.
+Como se mencionó anterioremente, la tabla de arriba se complementó con los "potential outcomes" reportados en la figura 18.2 de "Regresion and Other Stories" (pag 342), donde pot_out_z0 corresponde al resultado observado si no se hubiera tomado el tratamiento y pot_out_z1 al resultado observado si se hubiera tomado el tratamiento.
 
 Se piden 4 muestras de los 3 diferentes diseños, siendo los diseños:
 - Completamente aleatorizado: Se distribuyen 4 tratamientos entre los 8 miembros del grupo completamente al azar (1 bloque conformado por todos)
@@ -229,6 +228,7 @@ rand_assig_by_desig <- function(blocks,...){
   # parámetros dinámicos list(...), el 1er elemento de esta lista será
   # el no. de tratamientos asignados al bloque 1, el 2do elemento de
   # list(...) será el no. de tratamientos asignados al bloque 2, etc
+  
   
   asig<-NULL
   tbb<-as.numeric(unlist(list(...))) # tbb: treatments by blocks
@@ -262,6 +262,7 @@ sims_design <- function(df,n,d,...){
 Primero la del diseño 1 que está totalmente aleatorizada:
 
 ```{r, warning=FALSE, message=FALSE, cache = TRUE}
+set.seed(SEED)
 rand_design_1 <- sims_design(omega,4,1,4)
 rand_design_2 <- sims_design(omega,4,2,2,2)
 rand_design_3 <- sims_design(omega,4,3,1,1,1,1)
@@ -294,12 +295,15 @@ el tratamiento (bajo el supuesto de omnisciencia), se calcularán las 4 estimaci
   * $y_{outcome} = \alpha + \tau z_{treatment} + \beta_{1}age + \beta_{2}female$
   * $y_{outcome} = \alpha + \tau z_{treatment} + \beta_{1}age + \beta_{2}female + \beta_{3}age*female$
   
-Primero vamos a realizar las estimaciones de las diferencias y las regresiones en cada uno de los diseños con el objetivo de estimar el efecto causal de haber aplicado el tratamiento (Z=1) en la presión arterial (nuestro outccome) sobre los individuos del estudio por medio de la diferencia de medias el coeficiente $\tau$ de las regresiones.
+Primero vamos a realizar las estimaciones de las diferencias y las regresiones en cada uno de los diseños con el objetivo de estimar el efecto causal de haber aplicado el tratamiento (Z=1) en la presión arterial (nuestro outccome) sobre los individuos del estudio a partir del resultado observado de esta diferencia y el coeficiente $\tau$ de las regresiones.
 
 ```{r, warning=FALSE, message=FALSE, cache = TRUE}
 # Función para obtener la diferencia del outcome promedio de
 # los sujetos con tratamiento menos la media de los outcomes de
 # los sujetos sin tratamiento
+
+simulaciones<-4000
+
 dif_medias_fun <- function(df){
   df %>%
     group_by(sample, treatment_z) %>%
@@ -321,6 +325,7 @@ get_mod <- function(df, ...){
          # prior = c(prior(normal(0, 1.5), class = Intercept),
          # prior(normal(0, 0.5), class = b)),
          seed=SEED,
+         iter=simulaciones,
          refresh = 0)
   return(model)
 }
@@ -359,37 +364,112 @@ d1_1<-dif_medias_fun(rand_design_1)
 d1_1
 ```
 
-E identificamos variación entre las diferencias de cada muestra respecto a los individuos con tratamiento Z=1 y con tratamiento Z=0 de caracter negativo sobre la variable outcome (presión arterial).
+E identificamos variación entre las diferencias de cada muestra (que van desde -21.25 a 6.25) respecto a los individuos con tratamiento Z=1 y con tratamiento sobre la variable outcome (presión arterial).
+
+Ahora generamos los modelos para las 4 muestras con el diseño 1 para la primer regresión:
 
 ```{r}
-d1_2<-get_coefs_models_brm(get_mod_by_sample(rand_design_1, "outcome_y", "treatment_z", "age"))
+fit_3_d1_2<-get_mod_by_sample(rand_design_1, "outcome_y", "treatment_z", "age")
+fit_3_d1_2
+```
+
+Y vemos que el número efectivo de simulaciones supera las 4,000 simulaciones lo cual se debe al bajo número de observaciones en la muestra que es de sólo 8 individuos. Y nuestra estimación no está usando distribuciones previas para los parámetros muy informativas pues usamos las default:
+
+```{r}
+for (i in 1:4){
+  print(prior_summary(fit_3_d1_2[[i]]))
+}
+```
+
+Ahora damos un vistazo a los diagnósticos con loo:
+
+```{r}
+for (i in 1:4){
+  print(loo(fit_3_d1_2[[i]]))
+}
+```
+Y vemos que el diagnóstico de los modelos es malo o muuy malo. Pasamos a analizar los coeficientes:
+
+```{r}
+d1_2<-get_coefs_models_brm(fit_3_d1_2)
 d1_2 %>% round(1)
 ```
 
-En la primer regresión, el tratamiento Z tiene de forma consistente un efecto negativo sobre el outcome (presión arterial) mientras que la edad como predictor tiene un positivo.
+En la primer regresión, el tratamiento Z tiene de forma consistente un efecto negativo sobre el outcome (presión arterial) mientras que la edad como predictor tiene uno positivo.
+
+Ahora generamos los modelos para las 4 muestras con el diseño 1 para la segunda regresión:
 
 ```{r}
-d1_3<-get_coefs_models_brm(get_mod_by_sample(rand_design_1, "outcome_y", "treatment_z", "age", "female"))
+fit_3_d1_3<-get_mod_by_sample(rand_design_1, "outcome_y", "treatment_z", "age", "female")
+fit_3_d1_3
+```
+
+Y vemos que el número efectivo de simulaciones supera las 4,000 simulaciones lo cual se debe al bajo número de observaciones en la muestra que es de sólo 8 individuos. Y nuestra estimación no está usando distribuciones previas para los parámetros muy informativas pues usamos las default:
+
+```{r}
+for (i in 1:4){
+  print(prior_summary(fit_3_d1_3[[i]]))
+}
+```
+
+Ahora damos un vistazo a los diagnósticos con loo:
+
+```{r}
+for (i in 1:4){
+  print(loo(fit_3_d1_3[[i]]))
+}
+```
+
+Y vemos que el diagnóstico de los modelos es malo o ok. Pasamos a analizar los coeficientes:
+
+```{r}
+d1_3<-get_coefs_models_brm(fit_3_d1_3)
 d1_3  %>% round(1)
 ```
 
-En la segunda regresión, la aportación del intercepto se reduce. El tratamiento Z sigue teniendo un efecto negativo sobre el outcome (presión arterial). En general, la magnitud de sus coeficientes se reducen respecto al modelo anterior, la edad como predictor sigue teniendo un efecto positivo similar y al incorporar la variable indicadora del sexo femenino, se agrega otra contribución positiva.
+En la segunda regresión, la aportación del intercepto se reduce en general. El tratamiento Z sigue teniendo un efecto negativo sobre el outcome (presión arterial). La edad como predictor sigue teniendo un efecto positivo similar y al incorporar la variable indicadora del sexo femenino, se agrega otra contribución positiva.
+
+
+Ahora generamos los modelos para las 4 muestras con el diseño 1 para la tercera regresión:
 
 ```{r}
-d1_4<-get_coefs_models_brm(get_mod_by_sample(rand_design_1, "outcome_y", "treatment_z", "age", "female", "age*female"))
-d1_4 %>% round(3)
+fit_3_d1_4<-get_mod_by_sample(rand_design_1, "outcome_y", "treatment_z", "age", "female", "treatment_z*female")
+fit_3_d1_4
 ```
 
-En la tercera regresión, el tratamiento Z continúa teniendo un efecto negativo sobre el outcome (presión arterial), la edad y el sexo femenino mantienen una contribución positiva sobre la predicción y la interacción entre la edad y el sexo femenino varía de signo entre las muestras.
+Y vemos que el número efectivo de simulaciones supera las 4,000 simulaciones o bien es de orden de centenas. Lo cual se debe al bajo número de observaciones en la muestra que es de sólo 8 individuos. Y nuestra estimación no está usando distribuciones previas para los parámetros muy informativas pues usamos las default:
 
-Ahora mostramos los resultados de las estimaciones para el diseño 3 con las 4 muestras:
+```{r}
+for (i in 1:4){
+  print(prior_summary(fit_3_d1_4[[i]]))
+}
+```
+
+Ahora damos un vistazo a los diagnósticos con loo:
+
+```{r}
+for (i in 1:4){
+  print(loo(fit_3_d1_4[[i]]))
+}
+```
+
+Y vemos que el diagnóstico de los modelos es muy malo, malo u ok. Pasamos a analizar los coeficientes:
+
+```{r}
+d1_4<-get_coefs_models_brm(fit_3_d1_4)
+d1_4  %>% round(5)
+```
+
+En la tercera regresión, el tratamiento Z continúa teniendo un efecto negativo sobre el outcome (presión arterial) alrededor de -10, la edad y el sexo femenino mantienen una contribución positiva sobre la predicción así como la interacción entre el tratamiento y el sexo femenino.
+
+Ahora mostramos los resultados de las estimaciones para el diseño 2 con las 4 muestras:
 
 ```{r}
 d2_1<-dif_medias_fun(rand_design_2)
 d2_1 %>% round(1)
 ```
 
-Con este diseño nuevamente identificamos variación entre las diferencias de cada muestra (aunque más pequeñas que en el diseño 1) respecto a los individuos con tratamiento Z=1 y con tratamiento Z=0 de caracter negativo sobre la variable outcome (presión arterial).
+Con este diseño nuevamente identificamos variación entre las diferencias de cada muestra (aunque más pequeñas que en el diseño 1) respecto a los individuos con tratamiento Z=1 y sin tratamiento Z=0 de carácter negativo sobre la variable outcome (presión arterial).
 
 ```{r, warning=FALSE, message=FALSE, cache = TRUE}
 d2_2<-get_coefs_models_brm(get_mod_by_sample(rand_design_2, "outcome_y", "treatment_z", "age"))
@@ -403,23 +483,23 @@ d2_3<-get_coefs_models_brm(get_mod_by_sample(rand_design_2, "outcome_y", "treatm
 d2_3 %>% round(1)
 ```
 
-En la segunda regresión, la aportación del intercepto se reduce. El tratamiento Z sigue teniendo un efecto negativo sobre el outcome (presión arterial). La edad como predictor sigue teniendo un efecto positivo y al incorporar la variable indicadora del sexo femenino, se añade otra contribución positiva.
+En la segunda regresión, la aportación del intercepto se reduce. El tratamiento Z sigue teniendo un efecto negativo sobre el outcome (presión arterial) pero se estabiliza alrededor de -7.6. La edad como predictor sigue teniendo un efecto positivo y al incorporar la variable indicadora del sexo femenino, se añade otra contribución positiva.
 
 ```{r}
-d2_4<-get_coefs_models_brm(get_mod_by_sample(rand_design_2, "outcome_y", "treatment_z", "age", "female", "age*female"))
-d2_4 %>% round(3)
+d2_4<-get_coefs_models_brm(get_mod_by_sample(rand_design_2, "outcome_y", "treatment_z", "age", "female", "treatment_z*female"))
+d2_4 %>% round(5)
 ```
 
-En la tercera regresión, el tratamiento Z continua teniendo un efecto negativo sobre el outcome (presión arterial), la edad y el sexo femenino mantienen una contribución positiva sobre la predicción y la interacción entre la edad y el sexo varía de signo entre las muestras como en el caso del diseño 1.
+En la tercera regresión, el tratamiento Z continúa teniendo un efecto negativo sobre el outcome (presión arterial) cercano a -10, la edad y el sexo femenino mantienen una contribución positiva sobre la predicción así como la interacción entre el tratamiento Z y el sexo.
 
-Ahora mostramos los resultados de las estimaciones para el diseño 2 con las 4 muestras:
+Ahora mostramos los resultados de las estimaciones para el diseño 3 con las 4 muestras:
 
 ```{r}
 d3_1<-dif_medias_fun(rand_design_3)
 d3_1 %>% round(1)
 ```
 
-Con este último diseño nuevamente ya no identificamos variación entre las diferencias de cada muestra respecto a los individuos con tratamiento Z=1 y con tratamiento Z=0 de caracter negativo sobre la variable outcome (presión arterial).
+Con este último diseño ya no identificamos variación entre las diferencias de medias de cada muestra respecto a los individuos con tratamiento Z=1 y sin tratamiento Z=0 de caracter negativo sobre la variable outcome (presión arterial), ya que se repartieron entre individuos idénticos cuyos potential outcomes son iguales.
 
 ```{r, warning=FALSE, message=FALSE, cache = TRUE}
 d3_2<-get_coefs_models_brm(get_mod_by_sample(rand_design_3, "outcome_y", "treatment_z", "age"))
@@ -436,13 +516,15 @@ d3_3 %>% round(1)
 En la segunda regresión, la aportación del intercepto se reduce como en los diseños anteriores. El tratamiento Z sigue teniendo un efecto negativo sobre el outcome (presión arterial) de -7.5. La edad como predictor sigue teniendo un efecto positivo de 1 y al incorporar la variable indicadora del sexo femenino, se añade otra contribución positiva cercana a 2.5.
 
 ```{r}
-d3_4<-get_coefs_models_brm(get_mod_by_sample(rand_design_3, "outcome_y", "treatment_z", "age", "female", "age*female"))
+d3_4<-get_coefs_models_brm(get_mod_by_sample(rand_design_3, "outcome_y", "treatment_z", "age", "female", "treatment_z*female"))
 d3_4 %>% round(3)
 ```
 
-En la tercera regresión, el tratamiento Z continúa teniendo un efecto negativo cercano a -7.5 sobre el outcome (presión arterial), la edad y el sexo femenino mantienen una contribución positiva sobre la predicción y la interacción entre la edad y el sexo varía de signo entre las muestras como en los diseños anteriores.
+En la tercera regresión, el tratamiento Z continúa teniendo un efecto negativo cercano a -10 sobre el outcome (presión arterial), la edad y el sexo femenino mantienen una contribución positiva sobre la predicción así como la interacción entre el tratamiento z y el sexo entre las muestras como en los diseños anteriores.
 
-En general, apreciamos diferencias sobre el efecto del tratamiento dependiendo de los diferentes diseños que se aplicaron sobre las 4 muestras que generadmos. Ahora aumentaremos el número de muestras y si calculamos la media de las diferencias para bajo los 3 diseños: 
+En general, apreciamos algunas diferencias sobre el efecto del tratamiento dependiendo de los diferentes diseños que se aplicaron sobre las 4 muestras que generamos sobre todo del 1 y 2. 
+
+Ahora aumentaremos el número de muestras y calculamos la media de las diferencias para bajo los 3 diseños: 
 
 ```{r, warning=FALSE, message=FALSE, cache = TRUE}
 mean(dif_medias_fun(sims_design(omega,10000,1,4))$dif_medias) #diseño 1: aleatorio y un bloque, 10,000 muestras
@@ -458,7 +540,7 @@ y<-c(140,140,150,150,160,160,170,170,135,135,140,140,155,155,160,160)
 lm(y ~ x)
 ```
 
-En conclusión, vemos que el sesgo relativo era mayor en los diseños 1 y 2 con un número de muestras pequeño. La eficiencia para medir el efecto causal del tratamiento sobre la presión arterial suponiendo omnisciencia fue superior en el diseño 3 ya que permite aleatorizar el efecto del tratamiento con individuos gemelos (mismo sexo y edad) cuya diferencia únicamente depende si recibió o no el tratamiento.
+En conclusión, vemos que el sesgo relativo era mayor en los diseños 1 y 2 para un número de muestras pequeño. La eficiencia para medir el efecto causal del tratamiento sobre la presión arterial suponiendo omnisciencia fue superior en el diseño 3 ya que permite aleatorizar el efecto del tratamiento con individuos gemelos (mismo sexo y edad) cuya diferencia únicamente depende de si recibió o no el tratamiento. Es decir, es el diseño más eficiente para medir el efecto causal asociado al tratamiento.
 
 `r col_square("**4.** Inferencia Causal y Modelos de Regresión: vacas")`
 
