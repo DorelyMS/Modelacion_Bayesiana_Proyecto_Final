@@ -1214,9 +1214,43 @@ de complemento. Calcula el efecto del tratamiento estimado (coeficiente de
 regresión) y el error estándar, y explica por qué este no es un análisis
 completamente apropiado dada la aleatorización utilizada.
 
-```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
 
-models_4b<-brm(data=Vacas,
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+# Covariables (variables conocidas previas al experimento) centradas
+aux<-scale(dplyr::select(Vacas,lactation,age,initial.weight), center = TRUE, scale = FALSE)
+colnames(aux)<-paste0(colnames(aux),".c")
+Vacas<-cbind(Vacas,aux)
+
+# Covariables (variables conocidas previas al experimento) estadarizadas
+aux<-scale(dplyr::select(Vacas,lactation,age,initial.weight), center = TRUE, scale = TRUE)
+colnames(aux)<-paste0(colnames(aux),".std")
+Vacas<-cbind(Vacas,aux)
+
+print_df(Vacas %>% dplyr::select(-c(dry,milk,fat,solids, protein)) %>% head(10))
+```
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+# # Base con covariables (variables conocidas previas al experimento) centradas
+# aux<-scale(dplyr::select(Vacas,lactation,age,initial.weight), center = TRUE, scale = FALSE)
+# # colnames(aux)<-paste0(colnames(aux),".c")
+# Vacas.c<-cbind(dplyr::select(Vacas,-c(lactation,age,initial.weight)),aux)
+# print_df(Vacas.c)
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+# # Base con covariables (variables conocidas previas al experimento) estadarizadas
+# aux<-scale(dplyr::select(Vacas,lactation,age,initial.weight), center = TRUE, scale = TRUE)
+# # colnames(aux)<-paste0(colnames(aux),".std")
+# Vacas.std<-cbind(dplyr::select(Vacas,-c(lactation,age,initial.weight)),aux)
+# print_df(Vacas.std)
+```
+
+
+
+```{r, warning=FALSE, message=TRUE, cache = TRUE}
+
+model_4b<-brm(data=Vacas,
        formula=formula(y_mdmf ~ level),
        # prior = c(prior(normal(0, 1.5), class = Intercept),
        # prior(normal(0, 0.5), class = b)),
@@ -1226,9 +1260,44 @@ models_4b<-brm(data=Vacas,
        refresh = 0
        )
 
-summary(models_4b)
-# fixef(models_4b)
+summary(model_4b)
+
 ```
+
+
+```{r, warning=FALSE, message=TRUE, cache = TRUE}
+
+# model_4b.c<-brm(data=Vacas,
+#        formula=formula(y_mdmf ~ level),
+#        # prior = c(prior(normal(0, 1.5), class = Intercept),
+#        # prior(normal(0, 0.5), class = b)),
+#        seed=SEED,
+#        cores = 4,
+#        backend = "cmdstanr",
+#        refresh = 0
+#        )
+# 
+# summary(model_4b.c)
+
+```
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+# 
+# model_4b.std<-brm(data=Vacas,
+#        formula=formula(y_mdmf ~ level),
+#        # prior = c(prior(normal(0, 1.5), class = Intercept),
+#        # prior(normal(0, 0.5), class = b)),
+#        seed=SEED,
+#        cores = 4,
+#        backend = "cmdstanr",
+#        refresh = 0
+#        )
+# 
+# summary(model_4b.std)
+
+```
+
 
 
 ## `r colorize("Inciso  **4.b**", subtitle=TRUE)`
@@ -1238,7 +1307,7 @@ covariables en el modelo. Compare el efecto estimado del tratamiento con el
 resultado de (a).
 
 
-```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
 # Funcion auxiliar que recibe una texto y devuelve 1eros 2 caractéres y si 
 # encuentra un "*" lo agrega a la salida junto con los 2 siguientes caracteres
 # que le siguen
@@ -1260,10 +1329,10 @@ ref_var_name<-function(str_var_list){
 # (donde están las variables del modelo) y las variables que conforman la fórmula de la regresión
 # )cuyas variables son tomadas de la lista de parámetros dinámicos)
 # Ejemplo: get_mod_4b(df, "A", ) --> Calculará un modelo con brm con la fórmula: 
-get_mod_4b <- function(df, ...){
-  formula_str <- paste0(list(...)[1], " ~ ", list(...)[2])
-  if (length(list(...)) >2)
-    for (i in 3:length(list(...)))
+get_mod <- function(df, ...){
+  formula_str <- paste0("y_mdmf ~ ", list(...)[1])
+  if (length(list(...)) >1)
+    for (i in 2:length(list(...)))
       formula_str <- paste0(formula_str, " + ", list(...)[i])
 
   model<-brm(data=df,
@@ -1278,16 +1347,20 @@ get_mod_4b <- function(df, ...){
   return(model)
 }
 
-get_all_models_4b <- function(df, combination_var){
+get_all_models <- function(df, combination_var){
   list_models<-NULL  
   for (i in 1:length(combination_var)){
     aux <- c(list(df),unlist(combination_var[i]))
-    list_models[[i]]<-do.call(get_mod_4b,aux)
+    list_models[[i]]<-do.call(get_mod,aux)
   }
   return(list_models)
 }
 
-combination_var<-list(
+```
+
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+combination_var_4b<-list(
   c("level","age"),
   c("level","initial.weight"),
   c("level","lactation"),
@@ -1305,14 +1378,64 @@ combination_var<-list(
     "level*initial.weight","level*lactation","age*initial.weight","age*lactation","initial.weight*lactation")
 )
 
-# Obtenemos los modelos formulados en combination_var
-models_4b<-c(list(models_4b),get_all_models_4b(Vacas,combination_var))
+combination_var_4b.c<-list(
+  c("level","age.c"),
+  c("level","initial.weight.c"),
+  c("level","lactation.c"),
+  c("level","age.c", "initial.weight.c"),
+  c("level","age.c","lactation.c"),
+  c("level","initial.weight.c","lactation.c"),
+  c("level","age.c","initial.weight.c","lactation.c"),
+  c("level","age.c","level*age.c"),
+  c("level","initial.weight.c", "level*initial.weight.c"),
+  c("level","lactation.c", "level*lactation.c"),
+  c("level","age.c", "initial.weight.c","level*age.c","level*initial.weight.c","age.c*initial.weight.c"),
+  c("level","age.c","lactation.c", "level*age.c","level*lactation.c","age.c*lactation.c"),
+  c("level","initial.weight.c","lactation.c","level*initial.weight.c","level*lactation.c","initial.weight.c*lactation.c"),
+  c("level","age.c","initial.weight.c","lactation.c","level*age.c",
+    "level*initial.weight.c","level*lactation.c","age.c*initial.weight.c","age.c*lactation.c","initial.weight.c*lactation.c")
+)
 
-# Agregamos a la lista de modelos el del 4a
-combination_var<-c("level",combination_var)
-# Pondremos nombres a todos los modelos
+combination_var_4b.std<-list(
+  c("level","age.std"),
+  c("level","initial.weight.std"),
+  c("level","lactation.std"),
+  c("level","age.std", "initial.weight.std"),
+  c("level","age.std","lactation.std"),
+  c("level","initial.weight.std","lactation.std"),
+  c("level","age.std","initial.weight.std","lactation.std"),
+  c("level","age.std","level*age.std"),
+  c("level","initial.weight.std", "level*initial.weight.std"),
+  c("level","lactation.std", "level*lactation.std"),
+  c("level","age.std", "initial.weight.std","level*age.std","level*initial.weight.std","age.std*initial.weight.std"),
+  c("level","age.std","lactation.std", "level*age.std","level*lactation.std","age.std*lactation.std"),
+  c("level","initial.weight.std","lactation.std","level*initial.weight.std","level*lactation.std","initial.weight.std*lactation.std"),
+  c("level","age.std","initial.weight.std","lactation.std","level*age.std",
+    "level*initial.weight.std","level*lactation.std","age.std*initial.weight.std","age.std*lactation.std","initial.weight.std*lactation.std")
+)
+
+# Preparamos el nombres de todos los modelos (incluidos el del 4a y los del 4b)
+# más adelante se usará esta lista de nombres reducidos (que se usarán para identificar 
+# cada modelo)
+combination_var<-c("level",combination_var_4b)
 models_names<-lapply(combination_var,ref_var_name)
 models_names<-sapply(models_names, paste, collapse = "_")
+
+combination_var.c<-c("level",combination_var_4b.c)
+models_names.c<-lapply(combination_var.c,ref_var_name)
+models_names.c<-sapply(models_names.c, paste, collapse = "_")
+
+combination_var.std<-c("level",combination_var_4b.std)
+models_names.std<-lapply(combination_var.std,ref_var_name)
+models_names.std<-sapply(models_names.std, paste, collapse = "_")
+```
+
+
+```{r, warning=FALSE, message=TRUE, cache = TRUE}
+# Obtenemos los modelos formulados en combination_var, agregando el del inciso 4a (model_4b)
+models_4b<-NULL
+models_4b<-c(list(model_4b),get_all_models(Vacas,combination_var_4b))
+
 # Con lo siguiente podrá verse cualquier modelo de la lista por su nombre
 # ejemplo: models_4b['le_la_le*la']
 names(models_4b)<-models_names
@@ -1320,21 +1443,78 @@ names(models_4b)<-models_names
 models_4b
 ```
 
-```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
-lapply(summary,models_4b)
-summary(models_4b[[1]])
+```{r, warning=FALSE, message=TRUE, cache = TRUE}
+loo_list_4b<-lapply(models_4b,loo)
+loo_compare(loo_list_4b)
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+# El mejor modelo acorde a comparación de loo
+# models_4b['le_ag_in_la']
 ```
 
 
-```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
-loo_list<-lapply(models_4b,loo)
-loo_compare(loo_list)
+
+
+
+
+
+
+
+```{r, warning=FALSE, message=TRUE, cache = TRUE}
+# Obtenemos los modelos formulados en combination_var, agregando el del inciso 4a (model_4b)
+models_4b.c<-NULL
+models_4b.c<-c(list(model_4b),get_all_models(Vacas,combination_var_4b.c))
+
+# Con lo siguiente podrá verse cualquier modelo de la lista por su nombre
+# ejemplo: models_4b['le_la_le*la']
+names(models_4b.c)<-models_names.c
+
+models_4b.c
+```
+
+```{r, warning=FALSE, message=TRUE, cache = TRUE}
+loo_list_4b.c<-lapply(models_4b.c,loo)
+loo_compare(loo_list_4b.c)
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+# El mejor modelo acorde a comparación de loo
+# models_4b.c['le_ag_in_la']
 ```
 
 
-```{r}
-models_4b['le_la_le*la']
+
+
+
+
+
+
+
+```{r, warning=FALSE, message=TRUE, cache = TRUE}
+# Obtenemos los modelos formulados en combination_var, agregando el del inciso 4a (model_4b)
+models_4b.std<-NULL
+models_4b.std<-c(list(model_4b),get_all_models(Vacas,combination_var_4b.std))
+
+# Con lo siguiente podrá verse cualquier modelo de la lista por su nombre
+# ejemplo: models_4b['le_la_le*la']
+names(models_4b.std)<-models_names.std
+
+models_4b.std
 ```
+
+```{r, warning=FALSE, message=TRUE, cache = TRUE}
+loo_list_4b.std<-lapply(models_4b.std,loo)
+loo_compare(loo_list_4b.std)
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+# El mejor modelo acorde a comparación de loo
+# models_4b.std['le_ag_in_la']
+```
+
+
+
 
 
 ## `r colorize("Inciso  **4.c**", subtitle=TRUE)`
@@ -1346,8 +1526,152 @@ inferencia del modelo ajustado en (**`r colorize("4. b", "#00614E")`**).
 
 
 
-```{r, warning=FALSE, message=FALSE, cache = TRUE, results='asis'}
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
 Vacas<-dummy_cols(Vacas, select_columns = "level")
-print_df(Vacas)
+Vacas<-Vacas %>% 
+          mutate(l0=level_0,l1=level_0.1,l2=level_0.2,l3=level_0.3) %>%
+          dplyr::select(-c(level, level_0,level_0.1,level_0.2,level_0.3))
+print_df(Vacas %>% dplyr::select(-c(dry,milk,fat,solids, protein)) %>% head(10))
 ```
 
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+combination_var_4c<-list(
+  c("l0","l1","l2","l3"),
+  c("l0","l1","l2","l3","age"),
+  c("l0","l1","l2","l3","initial.weight"),
+  c("l0","l1","l2","l3","lactation"),
+  c("l0","l1","l2","l3","age", "initial.weight"),
+  c("l0","l1","l2","l3","age","lactation"),
+  c("l0","l1","l2","l3","initial.weight","lactation"),
+  c("l0","l1","l2","l3","age","initial.weight","lactation"),
+  c("l0","l1","l2","l3","age", "initial.weight", "age*initial.weight"),
+  c("l0","l1","l2","l3","age","lactation","age*lactation"),
+  c("l0","l1","l2","l3","initial.weight","lactation","initial.weight*lactation"),
+  c("l0","l1","l2","l3","age","initial.weight","lactation","age*initial.weight","age*lactation","initial.weight*lactation","age*initial.weight*lactation")
+)
+
+combination_var_4c.c<-list(
+  c("l0","l1","l2","l3"),
+  c("l0","l1","l2","l3","age.c"),
+  c("l0","l1","l2","l3","initial.weight.c"),
+  c("l0","l1","l2","l3","lactation.c"),
+  c("l0","l1","l2","l3","age.c", "initial.weight.c"),
+  c("l0","l1","l2","l3","age.c","lactation.c"),
+  c("l0","l1","l2","l3","initial.weight.c","lactation.c"),
+  c("l0","l1","l2","l3","age.c","initial.weight.c","lactation.c"),
+  c("l0","l1","l2","l3","age.c", "initial.weight.c", "age.c*initial.weight.c"),
+  c("l0","l1","l2","l3","age.c","lactation.c","age.c*lactation.c"),
+  c("l0","l1","l2","l3","initial.weight.c","lactation.c","initial.weight.c*lactation.c"),
+  c("l0","l1","l2","l3","age.c","initial.weight.c","lactation.c","age.c*initial.weight.c","age.c*lactation.c","initial.weight.c*lactation.c","age.c*initial.weight.c*lactation.c")
+)
+
+
+combination_var_4c.std<-list(
+  c("l0","l1","l2","l3"),
+  c("l0","l1","l2","l3","age.std"),
+  c("l0","l1","l2","l3","initial.weight.std"),
+  c("l0","l1","l2","l3","lactation.std"),
+  c("l0","l1","l2","l3","age.std", "initial.weight.std"),
+  c("l0","l1","l2","l3","age.std","lactation.std"),
+  c("l0","l1","l2","l3","initial.weight.std","lactation.std"),
+  c("l0","l1","l2","l3","age.std","initial.weight.std","lactation.std"),
+  c("l0","l1","l2","l3","age.std", "initial.weight.std", "age.std*initial.weight.std"),
+  c("l0","l1","l2","l3","age.std","lactation.std","age.std*lactation.std"),
+  c("l0","l1","l2","l3","initial.weight.std","lactation.std","initial.weight.std*lactation.std"),
+  c("l0","l1","l2","l3","age.std","initial.weight.std","lactation.std","age.std*initial.weight.std","age.std*lactation.std","initial.weight.std*lactation.std","age.std*initial.weight.std*lactation.std")
+)
+
+# Preparamos el nombres de todos los modelos
+models_names_4c<-lapply(combination_var_4c,ref_var_name)
+models_names_4c<-sapply(models_names_4c, paste, collapse = "_")
+
+models_names_4c.c<-lapply(combination_var_4c.c,ref_var_name)
+models_names_4c.c<-sapply(models_names_4c.c, paste, collapse = "_")
+
+models_names_4c.std<-lapply(combination_var_4c.std,ref_var_name)
+models_names_4c.std<-sapply(models_names_4c.std, paste, collapse = "_")
+
+```
+
+
+```{r, warning=FALSE, message=TRUE, cache = TRUE}
+# Obtenemos los modelos formulados en combination_var, agregando el del inciso 4a (model_4b)
+models_4c<-NULL
+models_4c<-get_all_models(Vacas,combination_var_4c)
+
+# Con lo siguiente podrá verse cualquier modelo de la lista por su nombre
+# ejemplo: models_4b['le_la_le*la']
+names(models_4c)<-models_names_4c
+
+models_4c
+```
+
+```{r, warning=FALSE, message=TRUE, cache = TRUE}
+loo_list_4c<-lapply(models_4c,loo)
+loo_compare(loo_list_4c)
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+# El mejor modelo acorde a comparación de loo
+# models_4c['le_ag_in_la']
+```
+
+
+
+
+
+
+
+
+
+```{r, warning=FALSE, message=TRUE, cache = TRUE}
+# Obtenemos los modelos formulados en combination_var, agregando el del inciso 4a (model_4b)
+models_4c.c<-NULL
+models_4c.c<-get_all_models(Vacas,combination_var_4c.c)
+
+# Con lo siguiente podrá verse cualquier modelo de la lista por su nombre
+# ejemplo: models_4b['le_la_le*la']
+names(models_4c.c)<-models_names_4c.c
+
+models_4c.c
+```
+
+```{r, warning=FALSE, message=TRUE, cache = TRUE}
+loo_list_4c.c<-lapply(models_4c.c,loo)
+loo_compare(loo_list_4c.c)
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+# El mejor modelo acorde a comparación de loo
+# models_4c.c['le_ag_in_la']
+```
+
+
+
+
+
+
+
+
+
+```{r, warning=FALSE, message=TRUE, cache = TRUE}
+# Obtenemos los modelos formulados en combination_var, agregando el del inciso 4a (model_4b)
+models_4c.std<-NULL
+models_4c.std<-get_all_models(Vacas,combination_var_4c.std)
+
+# Con lo siguiente podrá verse cualquier modelo de la lista por su nombre
+# ejemplo: models_4b['le_la_le*la']
+names(models_4c.std)<-models_names_4c.std
+
+models_4c.std
+```
+
+```{r, warning=FALSE, message=TRUE, cache = TRUE}
+loo_list_4c.std<-lapply(models_4c.std,loo)
+loo_compare(loo_list_4c.std)
+```
+
+```{r, warning=FALSE, message=FALSE, cache = TRUE}
+# El mejor modelo acorde a comparación de loo
+# models_4c.std['le_ag_in_la']
+```
